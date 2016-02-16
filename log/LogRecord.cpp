@@ -1,7 +1,8 @@
 #include "log/LogRecord.hpp"
+#include <string.h>
 
 namespace quickstep {
-
+  // Constructors
   LogRecord::LogRecord(TransactionId tid,
                        LogRecordType log_record_type)
     : tid_(tid)
@@ -20,5 +21,33 @@ namespace quickstep {
     , bid_(bid)
     , tuple_id_(tupleId)
     , aid_(aid)  {}
+
+  InsertLogRecord::InsertLogRecord(TransactionId tid,
+                                   LogRecordType log_record_type,
+                                   block_id bid,
+                                   Tuple* tuple)
+    : LogRecord(tid, log_record_type)
+    , bid_(bid)
+    , tuple_(tuple)  {}
+
+  // Return private fields
+  TransactionId LogRecord::getTId() {
+    return tid_;
+  }
+
+  // Translate id to string
+  std::string LogRecord::idToStr(std::uint64_t id) {
+    std::string str = "";
+    for (int i = 0; i < 8; ++i) { 
+      str = (char)(id & 0xFF) + str;
+      id >>= 8;
+    }
+    return str;
+  }
+
+  // Print methods
+  void LogRecord::print(FILE* log_file) {
+    
+  }
 
 } // namespace quickstep

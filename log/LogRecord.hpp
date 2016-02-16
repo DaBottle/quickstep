@@ -2,6 +2,7 @@
 #define QUICKSTEP_LOG_LOG_RECORD_
 
 #include "catalog/CatalogTypedefs.hpp"
+#include "storage/StorageBlock.hpp"
 #include "storage/StorageBlockInfo.hpp"
 #include "transaction/Transaction.hpp"
 #include <cstdint>
@@ -21,10 +22,20 @@ public:
     kABORT = 3,
     kCHECKPOINT = 4,
     kCOMPLETION = 5,
+    kINSERT = 6,
+    kDELETE = 7,
   };
 
   LogRecord(TransactionId tid,
             LogRecordType log_record_type);
+
+  TransactionId getTId();
+
+  // Translate id to string
+  std::string idToStr(std::uint64_t id);
+
+  // print the result to file
+  virtual void print(FILE* log_file);
 
 protected:
   TransactionId tid_;  // Transaction ID number
@@ -47,6 +58,18 @@ private:
   block_id bid_;
   tuple_id tuple_id_;
   attribute_id aid_;
+};
+
+class InsertLogRecord : public LogRecord {
+public:
+  InsertLogRecord(TransactionId tid,
+                  LogRecordType log_record_type,
+                  block_id bid,
+                  Tuple* tuple);
+
+private:
+  block_id bid_;
+  Tuple* tuple_;
 };
 
 } // namespace quickstep
