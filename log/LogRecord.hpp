@@ -5,6 +5,7 @@
 #include "storage/StorageBlock.hpp"
 #include "storage/StorageBlockInfo.hpp"
 #include "transaction/Transaction.hpp"
+#include "gtest/gtest_prod.h"
 #include <cstdint>
 #include <string>
 
@@ -16,14 +17,16 @@ class LogRecord {
 public:
   /* Log Record Type */ 
   enum class LogRecordType : std::uint8_t {
-    kUPDATE = 0,
-    kCOMPENSATION = 1,
-    kCOMMIT = 2,
-    kABORT = 3,
-    kCHECKPOINT = 4,
-    kCOMPLETION = 5,
-    kINSERT = 6,
-    kDELETE = 7,
+    kEMPTY = 0,  // Used for unit test
+    kUPDATE = 1,
+    kCOMPENSATION = 2,
+    kCOMMIT = 3,
+    kABORT = 4,
+    kCHECKPOINT = 5,
+    kCOMPLETION = 6,
+    kINSERT = 7,
+    kDELETE = 8,
+    kFORCE = 0xFF
   };
 
   LogRecord(TransactionId tid,
@@ -34,12 +37,20 @@ public:
   // Translate id to string
   std::string idToStr(std::uint64_t id);
 
-  // print the result to file
-  virtual void print(FILE* log_file);
+  // Tell if it is a force request
+  bool isForce();
+
+  // Get the header of the log record (9 bytes: type(1) and tid(8))
+  std::string header();
+
+  // Get the payload of the log record
+  virtual std::string payload();
 
 protected:
   TransactionId tid_;  // Transaction ID number
   LogRecordType log_record_type_;
+
+  FRIEND_TEST(LogManagerTest, HeaderTranslationTest);
 };
 
 class UpdateLogRecord : public LogRecord {

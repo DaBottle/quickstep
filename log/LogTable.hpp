@@ -15,6 +15,8 @@ public:
   // Return the previous LSN of given transaction, 0 if not exists
   LSN getPrevLSN(TransactionId tid);
 
+  void updateTable(TransactionId tid, LSN prev_LSN);
+
 private:
   std::unordered_map<TransactionId, LSN> log_table_;
 };

@@ -45,9 +45,19 @@ namespace quickstep {
     return str;
   }
 
+  bool LogRecord::isForce() {
+    return log_record_type_ == LogRecordType::kFORCE;
+  }
+
   // Print methods
-  void LogRecord::print(FILE* log_file) {
-    
+  std::string LogRecord::header() {
+    std::string header;
+    header += (char)log_record_type_ + idToStr(tid_);
+    return header;
+  }
+
+  std::string LogRecord::payload() {
+    return "";
   }
 
 } // namespace quickstep
