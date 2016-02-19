@@ -14,6 +14,7 @@ namespace quickstep {
 using LSN = std::uint64_t;
 
 class LogRecord {
+
 public:
   /* Log Record Type */ 
   enum class LogRecordType : std::uint8_t {
@@ -34,9 +35,6 @@ public:
 
   TransactionId getTId();
 
-  // Translate id to string
-  std::string idToStr(std::uint64_t id);
-
   // Tell if it is a force request
   bool isForce();
 
@@ -55,6 +53,7 @@ protected:
 
 class UpdateLogRecord : public LogRecord {
 public:
+  // Two constructor: one for string update, one for integer update
   UpdateLogRecord(TransactionId tid,
                   LogRecordType log_record_type,
                   std::string pre_image,
@@ -63,9 +62,30 @@ public:
                   tuple_id tupleId,
                   attribute_id aid);
 
+  UpdateLogRecord(TransactionId tid,
+                  LogRecordType log_record_type,
+                  int pre_image,
+                  int post_image,
+                  block_id bid,
+                  tuple_id tupleId,
+                  attribute_id aid);
+
+  // For update
+  // Update payload format:
+  // 1. Number update (33 bytes)
+  // is_num(1) bid(8) tupleId(8) aid(8) pre_num(4) post_num(4)
+  // 2. String update (33 bytes + 2 string length)
+  // is_num(1) bid(8) tupleId(8) aid(8) pre_num(4) pre_str(pre_num) post_num(4) post_str(post_num)
+  virtual std::string payload() override;
+
 private:
-  std::string pre_image_;
-  std::string post_image_;
+  bool isNum;
+  // Strings will be empty if the update item is an integer
+  std::string pre_str_;
+  std::string post_str_;
+  // Nums will be the length of string if the update item is a string
+  int pre_num_;
+  int post_num_;
   block_id bid_;
   tuple_id tuple_id_;
   attribute_id aid_;

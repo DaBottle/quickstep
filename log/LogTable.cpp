@@ -16,8 +16,12 @@ namespace quickstep {
       return it->second;
   }
 
-  void LogTable::updateTable(TransactionId tid, LSN prev_LSN) {
+  void LogTable::update(TransactionId tid, LSN prev_LSN) {
     log_table_[tid] = prev_LSN;
+  }
+
+  void LogTable::remove(TransactionId tid) {
+    log_table_.erase(tid);
   }
 
 } // namespace quickstep
