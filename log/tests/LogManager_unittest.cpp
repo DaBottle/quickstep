@@ -64,11 +64,12 @@ TEST(LogManagerTest, HeaderTranslationTest) {
   EXPECT_EQ(trans_prev_LSN_1, Helper::strToId(buffer.substr(Macros::kTRANS_PREV_LSN_START, sizeof(LSN))));
 }
 
+// Test if the translation of the payload is correct
 TEST(LogManagerTest, PayloadTranslationTest) {
   LogManager log_manager;
   // Check update log
   // Number update
-  UpdateLogRecord update_log_record_1((TransactionId) 1, LogRecord::LogRecordType::kUPDATE, 12, 34, (block_id) 4, (tuple_id) 6, (attribute_id) 8);
+  UpdateLogRecord update_log_record_1((TransactionId) 1, 12, 34, (block_id) 4, (tuple_id) 6, (attribute_id) 8);
   log_manager.sendLogRequest(&update_log_record_1);
   log_manager.fetchNext();
   
@@ -84,7 +85,7 @@ TEST(LogManagerTest, PayloadTranslationTest) {
   // String update
   std::string pre_str = "12";
   std::string post_str = "34";
-  UpdateLogRecord update_log_record_2((TransactionId) 1, LogRecord::LogRecordType::kUPDATE, pre_str, post_str, (block_id) 1, (tuple_id) 2, (attribute_id) 3);
+  UpdateLogRecord update_log_record_2((TransactionId) 1, pre_str, post_str, (block_id) 1, (tuple_id) 2, (attribute_id) 3);
   log_manager.sendLogRequest(&update_log_record_2);
   log_manager.fetchNext();
 
@@ -97,7 +98,30 @@ TEST(LogManagerTest, PayloadTranslationTest) {
   EXPECT_EQ((int)post_str.length(), Helper::strToInt(update_payload_2.substr(Macros::kPOST_NUM_START, sizeof(int))));
   EXPECT_EQ(pre_str, update_payload_2.substr(Macros::kSTRING_START, pre_str.length()));
   EXPECT_EQ(post_str, update_payload_2.substr(Macros::kSTRING_START + pre_str.length(), post_str.length()));
+}
 
+// Test if the log table would behave properly upon transaction commission and abortion
+TEST(LogManagerTest, CommitAndAbortTest) {
+  LogManager log_manager;
+  TransactionId tid = 1;
+  // Commit
+  LogRecord empty(tid, LogRecord::LogRecordType::kEMPTY);
+  CommitLogRecord commit_log_record(tid);
+  log_manager.sendLogRequest(&empty);
+  log_manager.sendLogRequest(&commit_log_record);
+  log_manager.fetchNext();
+  EXPECT_EQ((LSN) 1, log_manager.log_table_.getPrevLSN(tid));
+  log_manager.fetchNext();
+  EXPECT_EQ((LSN) 0, log_manager.log_table_.getPrevLSN(tid));
+
+  // Abort
+  AbortLogRecord abort_log_record(tid);
+  log_manager.sendLogRequest(&empty);
+  log_manager.sendLogRequest(&abort_log_record);
+  log_manager.fetchNext();
+  EXPECT_EQ((LSN) (1 + 2 * Macros::kHEADER_LENGTH), log_manager.log_table_.getPrevLSN(tid));
+  log_manager.fetchNext();
+  EXPECT_EQ((LSN) 0, log_manager.log_table_.getPrevLSN(tid));
 }
 
 } // namespace quickstep

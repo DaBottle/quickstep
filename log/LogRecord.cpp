@@ -4,61 +4,22 @@
 #include <string.h>
 
 namespace quickstep {
-  // Constructors
+  // LogRecord
   LogRecord::LogRecord(TransactionId tid,
                        LogRecordType log_record_type)
     : tid_(tid)
     , log_record_type_(log_record_type)  {}
 
-  UpdateLogRecord::UpdateLogRecord(TransactionId tid,
-                          LogRecordType log_record_type,
-                          std::string pre_image,
-                          std::string post_image,
-                          block_id bid,
-                          tuple_id tupleId,
-                          attribute_id aid)
-    : LogRecord(tid, log_record_type)
-    , isNum(false)
-    , pre_str_(pre_image)
-    , post_str_(post_image)
-    , pre_num_((int)pre_image.length())
-    , post_num_((int)post_image.length())
-    , bid_(bid)
-    , tuple_id_(tupleId)
-    , aid_(aid)  {}
-
-  UpdateLogRecord::UpdateLogRecord(TransactionId tid,
-                          LogRecordType log_record_type,
-                          int pre_image,
-                          int post_image,
-                          block_id bid,
-                          tuple_id tupleId,
-                          attribute_id aid)
-    : LogRecord(tid, log_record_type)
-    , isNum(true)
-    , pre_str_()
-    , post_str_()
-    , pre_num_(pre_image)
-    , post_num_(post_image)
-    , bid_(bid)
-    , tuple_id_(tupleId)
-    , aid_(aid)  {}
-
-  InsertLogRecord::InsertLogRecord(TransactionId tid,
-                                   LogRecordType log_record_type,
-                                   block_id bid,
-                                   Tuple* tuple)
-    : LogRecord(tid, log_record_type)
-    , bid_(bid)
-    , tuple_(tuple)  {}
-
-  // Return private fields
   TransactionId LogRecord::getTId() {
     return tid_;
   }
 
   bool LogRecord::isForce() {
     return log_record_type_ == LogRecordType::kFORCE;
+  }
+
+  bool LogRecord::isComplete() {
+    return log_record_type_ == LogRecordType::kCOMMIT || log_record_type_ == LogRecordType::kABORT;
   }
 
   // Print methods
@@ -72,6 +33,41 @@ namespace quickstep {
     return "";
   }
 
+  // UpdateLogRecord
+  // for variable-sized fields
+  UpdateLogRecord::UpdateLogRecord(TransactionId tid,
+                          std::string pre_image,
+                          std::string post_image,
+                          block_id bid,
+                          tuple_id tupleId,
+                          attribute_id aid)
+    : LogRecord(tid, LogRecordType::kUPDATE)
+    , isNum(false)
+    , pre_str_(pre_image)
+    , post_str_(post_image)
+    , pre_num_((int)pre_image.length())
+    , post_num_((int)post_image.length())
+    , bid_(bid)
+    , tuple_id_(tupleId)
+    , aid_(aid)  {}
+
+  // for fixed sized fields
+  UpdateLogRecord::UpdateLogRecord(TransactionId tid,
+                          int pre_image,
+                          int post_image,
+                          block_id bid,
+                          tuple_id tupleId,
+                          attribute_id aid)
+    : LogRecord(tid, LogRecordType::kUPDATE)
+    , isNum(true)
+    , pre_str_()
+    , post_str_()
+    , pre_num_(pre_image)
+    , post_num_(post_image)
+    , bid_(bid)
+    , tuple_id_(tupleId)
+    , aid_(aid)  {}
+
   std::string UpdateLogRecord::payload() {
     std::string payload;
     payload += Helper::idToStr(bid_) + Helper::intToStr(tuple_id_) + Helper::intToStr(aid_);
@@ -84,5 +80,21 @@ namespace quickstep {
     
     return payload;
   }
+
+  // CommitLogRecord
+  CommitLogRecord::CommitLogRecord(TransactionId tid)
+    : LogRecord(tid, LogRecordType::kCOMMIT) {}
+
+  // AbortLogRecord
+  AbortLogRecord::AbortLogRecord(TransactionId tid)
+    : LogRecord(tid, LogRecordType::kABORT) {}
+
+  InsertLogRecord::InsertLogRecord(TransactionId tid,
+                                   LogRecordType log_record_type,
+                                   block_id bid,
+                                   Tuple* tuple)
+    : LogRecord(tid, log_record_type)
+    , bid_(bid)
+    , tuple_(tuple)  {}
 
 } // namespace quickstep

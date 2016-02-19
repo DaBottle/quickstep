@@ -23,6 +23,8 @@ public:
 private:
   std::unordered_map<TransactionId, LSN> log_table_;
   FRIEND_TEST(LotTableTest, EntryTest);
+
+  DISALLOW_COPY_AND_ASSIGN(LogTable);
 };
 
 } // namespace quickstep

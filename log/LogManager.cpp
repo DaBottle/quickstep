@@ -56,10 +56,17 @@ namespace quickstep {
     }
     // write to buffer
     buffer_ += record_str;
+
     // Update private fields
     prev_LSN_ = current_LSN;
-    log_table_.update(log_record->getTId(), current_LSN);
     ++record_count_;
+    // Update log table
+    if (log_record->isComplete()) {
+      log_table_.remove(log_record->getTId());
+    }
+    else {
+      log_table_.update(log_record->getTId(), current_LSN);
+    }
   }
 
   void LogManager::sendForceRequest() {

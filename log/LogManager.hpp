@@ -48,6 +48,9 @@ private:
   FRIEND_TEST(LogManagerTest, LSNTest);
   FRIEND_TEST(LogManagerTest, HeaderTranslationTest);
   FRIEND_TEST(LogManagerTest, PayloadTranslationTest);
+  FRIEND_TEST(LogManagerTest, CommitAndAbortTest);
+
+  DISALLOW_COPY_AND_ASSIGN(LogManager);
 };
 
 } // namespace quickstep
