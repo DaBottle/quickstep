@@ -64,6 +64,8 @@ TEST(LogManagerTest, HeaderTranslationTest) {
   EXPECT_EQ(trans_prev_LSN_1, Helper::strToId(buffer.substr(Macros::kTRANS_PREV_LSN_START, sizeof(LSN))));
 }
 
+// TODO(Shixuan): Check every possible type of value
+/*
 // Test if the translation of the payload is correct
 TEST(LogManagerTest, PayloadTranslationTest) {
   LogManager log_manager;
@@ -122,6 +124,6 @@ TEST(LogManagerTest, CommitAndAbortTest) {
   EXPECT_EQ((LSN) (1 + 2 * Macros::kHEADER_LENGTH), log_manager.log_table_.getPrevLSN(tid));
   log_manager.fetchNext();
   EXPECT_EQ((LSN) 0, log_manager.log_table_.getPrevLSN(tid));
-}
+}*/
 
 } // namespace quickstep

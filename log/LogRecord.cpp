@@ -34,50 +34,54 @@ namespace quickstep {
   }
 
   // UpdateLogRecord
-  // for variable-sized fields
   UpdateLogRecord::UpdateLogRecord(TransactionId tid,
-                          std::string pre_image,
-                          std::string post_image,
-                          block_id bid,
-                          tuple_id tupleId,
-                          attribute_id aid)
-    : LogRecord(tid, LogRecordType::kUPDATE)
-    , isNum(false)
-    , pre_str_(pre_image)
-    , post_str_(post_image)
-    , pre_num_((int)pre_image.length())
-    , post_num_((int)post_image.length())
-    , bid_(bid)
-    , tuple_id_(tupleId)
-    , aid_(aid)  {}
-
-  // for fixed sized fields
-  UpdateLogRecord::UpdateLogRecord(TransactionId tid,
-                          int pre_image,
-                          int post_image,
-                          block_id bid,
-                          tuple_id tupleId,
-                          attribute_id aid)
-    : LogRecord(tid, LogRecordType::kUPDATE)
-    , isNum(true)
-    , pre_str_()
-    , post_str_()
-    , pre_num_(pre_image)
-    , post_num_(post_image)
-    , bid_(bid)
-    , tuple_id_(tupleId)
-    , aid_(aid)  {}
+                  block_id bid,
+                  tuple_id tupleId,
+                  attribute_id aid,
+                  TypedValue pre_typed_value,
+                  TypedValue post_typed_value)
+  : LogRecord(tid, LogRecordType::kUPDATE)
+  , bid_(bid)
+  , tuple_id_(tupleId)
+  , aid_(aid)
+  , pre_type_(pre_typed_value.getTypeID() 
+            | pre_typed_value.isNull() << Macros::kNULL_SHIFT
+            | pre_typed_value.ownsOutOfLineData() << Macros::kOWN_SHIFT)
+  , pre_length_(pre_typed_value.getDataSize() & 0xFF)
+  , pre_image_()
+  , post_type_(post_typed_value.getTypeID() 
+            | post_typed_value.isNull() << Macros::kNULL_SHIFT
+            | post_typed_value.ownsOutOfLineData() << Macros::kOWN_SHIFT)
+  , post_length_(post_typed_value.getDataSize() & 0xFF)
+  , post_image_()
+  {
+    // Only having image if it is not null
+    if (!pre_typed_value.isNull()) {
+      char* pre_buffer = new char[(int)pre_length_ + 1];
+      pre_typed_value.copyInto(pre_buffer);
+      pre_image_ = std::string(pre_buffer);
+    }
+    if (!post_typed_value.isNull()) {
+      char* post_buffer = new char[(int)post_length_ + 1];
+      post_typed_value.copyInto(post_buffer);
+      post_image_ = std::string(post_buffer);
+    }
+  }
 
   std::string UpdateLogRecord::payload() {
     std::string payload;
-    payload += Helper::idToStr(bid_) + Helper::intToStr(tuple_id_) + Helper::intToStr(aid_);
-    if (isNum) {
-      payload += (char) Macros::kIS_NUMBER + Helper::intToStr(pre_num_) + Helper::intToStr(post_num_);
-    }
-    else {
-      payload += (char) Macros::kIS_STRING + Helper::intToStr(pre_num_) + Helper::intToStr(post_num_) + pre_str_ + post_str_;
-    }
-    
+    // Location
+    payload += Helper::idToStr(bid_) 
+              + Helper::intToStr(tuple_id_) 
+              + Helper::intToStr(aid_);
+    // Action
+    payload += (char) pre_type_;
+    payload += (char) pre_length_;
+    payload += pre_image_;
+    payload += (char) post_type_;
+    payload += (char) post_length_;
+    payload += post_image_;
+
     return payload;
   }
 

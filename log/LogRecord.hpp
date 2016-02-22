@@ -5,6 +5,8 @@
 #include "storage/StorageBlock.hpp"
 #include "storage/StorageBlockInfo.hpp"
 #include "transaction/Transaction.hpp"
+#include "types/TypedValue.hpp"
+#include "types/TypeID.hpp"
 #include "types/containers/Tuple.hpp"
 #include "gtest/gtest_prod.h"
 #include <cstdint>
@@ -64,34 +66,29 @@ protected:
  */
 class UpdateLogRecord : public LogRecord {
 public:
-  // Two constructor: one for string update, one for integer update
   UpdateLogRecord(TransactionId tid,
-                  std::string pre_image,
-                  std::string post_image,
                   block_id bid,
                   tuple_id tupleId,
-                  attribute_id aid);
+                  attribute_id aid,
+                  TypedValue pre_typed_value,
+                  TypedValue post_typed_value);
 
-  UpdateLogRecord(TransactionId tid,
-                  int pre_image,
-                  int post_image,
-                  block_id bid,
-                  tuple_id tupleId,
-                  attribute_id aid);
-
+  // Return the payload of the log record
   virtual std::string payload() override;
 
 private:
-  bool isNum;
-  // Strings will be empty if the update item is an integer
-  std::string pre_str_;
-  std::string post_str_;
-  // Nums will be the length of string if the update item is a string
-  int pre_num_;
-  int post_num_;
   block_id bid_;
   tuple_id tuple_id_;
   attribute_id aid_;
+  // The lowest 6 bits is value type, the 7th is null flag, the 8th is out-of-line data ownership flag
+  std::uint8_t pre_type_;
+  // The length of out-of-line data
+  std::uint8_t pre_length_;
+  // The byte value string of data
+  std::string pre_image_;
+  std::uint8_t post_type_;
+  std::uint8_t post_length_;
+  std::string post_image_;
 };
 
 
