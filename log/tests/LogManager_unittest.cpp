@@ -14,12 +14,14 @@ TEST(LogManagerTest, LSNTest) {
   LogManager log_manager;
   EXPECT_EQ(log_manager.current_LSN_, (LSN) 1);
   EXPECT_EQ(log_manager.prev_LSN_, (LSN) 0);
+
   // Add first record
   LogRecord log_record_1((TransactionId) 1, LogRecord::LogRecordType::kEMPTY);
   log_manager.sendLogRequest(&log_record_1);
   log_manager.fetchNext();
   EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH), log_manager.current_LSN_);
   EXPECT_EQ((LSN) 1, log_manager.prev_LSN_);
+
   // Add second record 
   LogRecord log_record_2((TransactionId) 2, LogRecord::LogRecordType::kEMPTY);
   log_manager.sendLogRequest(&log_record_2);
@@ -32,12 +34,14 @@ TEST(LogManagerTest, LSNTest) {
 TEST(LogManagerTest, BufferSizeTest) {
   LogManager log_manager;
   EXPECT_EQ((int)log_manager.buffer_.length(), 0);
+
   // Write a record
   LogRecord log_record_1((TransactionId) 1, LogRecord::LogRecordType::kEMPTY);
   log_manager.sendLogRequest(&log_record_1);
   EXPECT_EQ(0, (int)log_manager.buffer_.length());
   log_manager.fetchNext();
   EXPECT_EQ(Macros::kHEADER_LENGTH + 0, (int)log_manager.buffer_.length());
+
   // Force to disk
   log_manager.forceToDisk("LOG");
   EXPECT_EQ(0, (int)log_manager.buffer_.length());
@@ -64,43 +68,29 @@ TEST(LogManagerTest, HeaderTranslationTest) {
   EXPECT_EQ(trans_prev_LSN_1, Helper::strToId(buffer.substr(Macros::kTRANS_PREV_LSN_START, sizeof(LSN))));
 }
 
-// TODO(Shixuan): Check every possible type of value
 /*
-// Test if the translation of the payload is correct
-TEST(LogManagerTest, PayloadTranslationTest) {
+// TODO(Shixuan): Check every possible type of value
+// Test if the update log record could be handled properly
+TEST(LogManagerTest, UpdateTest) {
   LogManager log_manager;
-  // Check update log
-  // Number update
-  UpdateLogRecord update_log_record_1((TransactionId) 1, 12, 34, (block_id) 4, (tuple_id) 6, (attribute_id) 8);
+  // Integer update
+  // Write record to buffer
+  TypedValue pre_typed_value((int) 12);
+  TypedValue post_typed_value((int) 34);
+  UpdateLogRecord update_log_record_1((TransactionId) 1, (block_id) 4, (tuple_id) 6, 
+                                      (attribute_id) 8, pre_typed_value, post_typed_value);
   log_manager.sendLogRequest(&update_log_record_1);
   log_manager.fetchNext();
   
+  // Check buffer
   std::string update_payload_1 = log_manager.buffer_.substr(Macros::kHEADER_LENGTH);
   EXPECT_EQ((block_id) 4, Helper::strToId(update_payload_1.substr(Macros::kBID_START, sizeof(block_id))));
   EXPECT_EQ((tuple_id) 6, Helper::strToInt(update_payload_1.substr(Macros::kTUPLE_ID_START, sizeof(tuple_id))));
   EXPECT_EQ((attribute_id) 8, Helper::strToInt(update_payload_1.substr(Macros::kAID_START, sizeof(attribute_id))));
-  EXPECT_EQ(Macros::kIS_NUMBER + 0, update_payload_1.at(Macros::kIS_NUM_START));
-  EXPECT_EQ(12, Helper::strToInt(update_payload_1.substr(Macros::kPRE_NUM_START, sizeof(int))));
-  EXPECT_EQ(34, Helper::strToInt(update_payload_1.substr(Macros::kPOST_NUM_START, sizeof(int))));
+  
   log_manager.forceToDisk("LOG");
-
-  // String update
-  std::string pre_str = "12";
-  std::string post_str = "34";
-  UpdateLogRecord update_log_record_2((TransactionId) 1, pre_str, post_str, (block_id) 1, (tuple_id) 2, (attribute_id) 3);
-  log_manager.sendLogRequest(&update_log_record_2);
-  log_manager.fetchNext();
-
-  std::string update_payload_2 = log_manager.buffer_.substr(Macros::kHEADER_LENGTH);
-  EXPECT_EQ((block_id) 1, Helper::strToId(update_payload_2.substr(Macros::kBID_START, sizeof(block_id))));
-  EXPECT_EQ((tuple_id) 2, Helper::strToInt(update_payload_2.substr(Macros::kTUPLE_ID_START, sizeof(tuple_id))));
-  EXPECT_EQ((attribute_id) 3, Helper::strToInt(update_payload_2.substr(Macros::kAID_START, sizeof(attribute_id))));
-  EXPECT_EQ(Macros::kIS_STRING + 0, update_payload_2.at(Macros::kIS_NUM_START));
-  EXPECT_EQ((int)pre_str.length(), Helper::strToInt(update_payload_2.substr(Macros::kPRE_NUM_START, sizeof(int))));
-  EXPECT_EQ((int)post_str.length(), Helper::strToInt(update_payload_2.substr(Macros::kPOST_NUM_START, sizeof(int))));
-  EXPECT_EQ(pre_str, update_payload_2.substr(Macros::kSTRING_START, pre_str.length()));
-  EXPECT_EQ(post_str, update_payload_2.substr(Macros::kSTRING_START + pre_str.length(), post_str.length()));
 }
+*/
 
 // Test if the log table would behave properly upon transaction commission and abortion
 TEST(LogManagerTest, CommitAndAbortTest) {
@@ -124,6 +114,6 @@ TEST(LogManagerTest, CommitAndAbortTest) {
   EXPECT_EQ((LSN) (1 + 2 * Macros::kHEADER_LENGTH), log_manager.log_table_.getPrevLSN(tid));
   log_manager.fetchNext();
   EXPECT_EQ((LSN) 0, log_manager.log_table_.getPrevLSN(tid));
-}*/
+}
 
 } // namespace quickstep
