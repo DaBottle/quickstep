@@ -30,6 +30,11 @@ public:
                  std::unordered_map<attribute_id, TypedValue>* old_value,
                  std::unordered_map<attribute_id, TypedValue>* updated_value);
 
+  void logInsert(TransactionId tid,
+                 block_id bid,
+                 tuple_id tupleId,
+                 Tuple* tuple);
+
   // API for flush to disk
   void sendForceRequest();
 
@@ -59,6 +64,7 @@ private:
   FRIEND_TEST(LogManagerTest, HeaderTranslationTest);
   FRIEND_TEST(LogManagerTest, UpdateTest);
   FRIEND_TEST(LogManagerTest, CommitAndAbortTest);
+  FRIEND_TEST(LogManagerTest, InsertTest);
 
   DISALLOW_COPY_AND_ASSIGN(LogManager);
 };

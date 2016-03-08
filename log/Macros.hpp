@@ -1,6 +1,8 @@
 #ifndef QUICKSTEP_LOG_MACROS_
 #define QUICKSTEP_LOG_MACROS_
 
+#include <cstdint>
+
 namespace quickstep {
 
 class Macros {
@@ -26,18 +28,10 @@ public:
   constexpr static int kTRANS_PREV_LSN_START = 29;
   constexpr static int kTRANS_PREV_LSN_END = 37;
 
-  // For update
-  // Update payload format:
-  // bid(8) tupleId(4) aid(4) type(1) length(1 or 0) image(varies)
-  // Shifts for information
+  // For TypedValue
   constexpr static int kNULL_SHIFT = 6;
   constexpr static int kOWN_SHIFT = 7;
-  constexpr static int kBID_START = 0;
-  constexpr static int kBID_END = 8;
-  constexpr static int kTUPLE_ID_START = 8;
-  constexpr static int kTUPLE_ID_END = 12;
-  constexpr static int kAID_START = 12;
-  constexpr static int kAID_END = 16;
+  constexpr static std::uint8_t kTYPE_MASK = 0x3F;
 };
 
 } // namespace quickstep

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstdint>
+#include "types/TypedValue.hpp"
 
 namespace quickstep {
 
@@ -19,6 +20,11 @@ public:
 
   static int strToInt(std::string str);
 
+  // Translate TypedValue into string
+  // Format: type(1): including type, isNull and ownsOutOfLineData
+  //         length(1): the length of the value
+  //         value(length): value in bytes
+  static std::string valueToStr(TypedValue value);
 };
 
 } // namespace quickstep

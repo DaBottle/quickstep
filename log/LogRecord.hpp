@@ -83,19 +83,24 @@ private:
 /**
  * Insert Log Record
  */
-/**
 class InsertLogRecord : public LogRecord {
 public:
   InsertLogRecord(TransactionId tid,
                   block_id bid,
                   tuple_id tupleId,
-                  Tuple& tuple);
+                  Tuple* tuple);
+
+  // Format of insert log payload:
+  // bid(8) tuple_id(4)
+  // For each attribute: pre_type(1), pre_length(1), pre_value(pre_length)
+  // for null value, only pre_type is written
+  virtual std::string payload() override;
 
 private:
   block_id bid_;
   tuple_id tuple_id_;
-  Tuple tuple_;
-}*/
+  Tuple* tuple_;
+};
 
 /**
  * Commit Log Record
@@ -111,18 +116,6 @@ public:
 class AbortLogRecord : public LogRecord {
 public:
   AbortLogRecord(TransactionId tid);
-};
-
-class InsertLogRecord : public LogRecord {
-public:
-  InsertLogRecord(TransactionId tid,
-                  LogRecordType log_record_type,
-                  block_id bid,
-                  Tuple* tuple);
-
-private:
-  block_id bid_;
-  Tuple* tuple_;
 };
 
 } // namespace quickstep

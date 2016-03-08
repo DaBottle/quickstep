@@ -1,4 +1,5 @@
 #include "log/Helper.hpp"
+#include "log/Macros.hpp"
 #include <string.h>
 #include <cstdint>
 
@@ -38,6 +39,23 @@ namespace quickstep {
       id += str.at(i);
     }
     return id;
+  }
+
+  std::string Helper::valueToStr(TypedValue value) {
+    std::string str;
+    std::uint8_t type = value.getTypeID()
+                      | (value.isNull() << Macros::kNULL_SHIFT) 
+                      | (value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
+    str.append(1, (char) type);
+    if (!value.isNull()) {
+      std::uint8_t length = value.getDataSize();
+      str.append(1, (char) length);
+      char* value_copy = new char[length];
+      value.copyInto(value_copy);
+      str += std::string(value_copy, length);
+    }
+    
+    return str;
   }
 
 } // namespace quickstep

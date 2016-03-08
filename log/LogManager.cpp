@@ -17,12 +17,21 @@ namespace quickstep {
     , buffer_()
     , mutex_()  {}
 
+  // Logging API
   void LogManager::logUpdate(TransactionId tid,
                              block_id bid,
                              tuple_id tupleId,
                              std::unordered_map<attribute_id, TypedValue>* old_value,
                              std::unordered_map<attribute_id, TypedValue>* updated_value) {
     UpdateLogRecord* record = new UpdateLogRecord(tid, bid, tupleId, old_value, updated_value);
+    writeToBuffer(record);
+  }
+
+  void LogManager::logInsert(TransactionId tid,
+                             block_id bid,
+                             tuple_id tupleId,
+                             Tuple* tuple) {
+    InsertLogRecord* record = new InsertLogRecord(tid, bid, tupleId, tuple);
     writeToBuffer(record);
   }
 

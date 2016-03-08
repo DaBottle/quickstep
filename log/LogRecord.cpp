@@ -57,37 +57,35 @@ namespace quickstep {
       // Attribute ID
       payload += Helper::intToStr(update_it->first);
       
-      // pre type, length and value
-      TypedValue pre_value = old_value_->at(update_it->first);
-      std::uint8_t pre_type = pre_value.getTypeID()
-                           | (pre_value.isNull() << Macros::kNULL_SHIFT) 
-                           | (pre_value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
-      payload.append(1, (char) pre_type);
-      if (!pre_value.isNull()) {
-        std::uint8_t pre_length = pre_value.getDataSize() & 0xFF;
-        payload.append(1, (char) pre_length);
-        char* value = new char[(int) pre_length];
-        pre_value.copyInto(value);
-        payload += std::string(value);
-      }
-
-      TypedValue post_value = update_it->second;
-      std::uint8_t post_type = post_value.getTypeID()
-                            | (post_value.isNull() << Macros::kNULL_SHIFT) 
-                            | (post_value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
-      payload.append(1, (char) post_type);
-      if (!post_value.isNull()) {
-        std::uint8_t post_length = post_value.getDataSize() & 0xFF;
-        payload.append(1, (char) post_length);
-        char* value = new char[(int) post_length];
-        post_value.copyInto(value);
-        payload += std::string(value);
-      }
-      //if (!EqualComparison::Instance().compareTypedValuesChecked(pre_value, pre_value.getTypeID(), post_value, post_value.getTypeID())) {
-
-      //}
+      // pre/post TypedValue
+      payload += Helper::valueToStr(old_value_->at(update_it->first))
+               + Helper::valueToStr(update_it->second);
     }
         
+    return payload;
+  }
+
+  // InsertLogRecord
+  InsertLogRecord::InsertLogRecord(TransactionId tid,
+                                   block_id bid,
+                                   tuple_id tupleId,
+                                   Tuple* tuple)
+  : LogRecord(tid, LogRecordType::kINSERT)
+  , bid_(bid)
+  , tuple_id_(tupleId)
+  , tuple_(tuple) {}
+
+  std::string InsertLogRecord::payload() {
+    std::string payload;
+    // block_id and tuple_id
+    payload += Helper::idToStr(bid_) + Helper::intToStr(tuple_id_);
+    // Tuple
+    for (Tuple::const_iterator value_it = tuple_->begin();
+         value_it != tuple_->end();
+         value_it++) {
+      payload += Helper::valueToStr(*value_it);
+    }
+    
     return payload;
   }
 
@@ -99,12 +97,5 @@ namespace quickstep {
   AbortLogRecord::AbortLogRecord(TransactionId tid)
     : LogRecord(tid, LogRecordType::kABORT) {}
 
-  InsertLogRecord::InsertLogRecord(TransactionId tid,
-                                   LogRecordType log_record_type,
-                                   block_id bid,
-                                   Tuple* tuple)
-    : LogRecord(tid, log_record_type)
-    , bid_(bid)
-    , tuple_(tuple)  {}
 
 } // namespace quickstep
