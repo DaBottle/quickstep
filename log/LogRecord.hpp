@@ -32,16 +32,12 @@ public:
     kCHECKPOINT = 5,
     kINSERT = 6,
     kDELETE = 7,
-    kFORCE = 0xFF
   };
 
   LogRecord(TransactionId tid,
             LogRecordType log_record_type);
 
   TransactionId getTId();
-
-  // Check the type
-  bool isForce();
 
   bool isComplete();
 
@@ -60,44 +56,46 @@ protected:
 
 /**
  * Update Log Record
- * 
- * Payload Format
- *   bid(8) tupleId(4) aid(4) preType(1) preLength(1) preImage(varies) postType(1) postLength(1) postImage(varies)
  */
 class UpdateLogRecord : public LogRecord {
 public:
   UpdateLogRecord(TransactionId tid,
-                  block_id pre_bid,
-                  tuple_id pre_tuple_id,
-                  block_id post_bid,
-                  tuple_id post_tuple_id,
-                  std::unordered_map<attribute_id, TypedValue>* pre_image,
-                  std::unordered_map<attribute_id, TypedValue>* post_image);
-
-  // Return the payload of the log record
+                  block_id bid,
+                  tuple_id tupleId,
+                  std::unordered_map<attribute_id, TypedValue>* old_value,
+                  std::unordered_map<attribute_id, TypedValue>* updated_value);
+                  
+  // Format of update log payload:
+  // First, bid(8) tuple_id(4)
+  // Then for each attribute: attribute_id(4), 
+  //                          pre_type(1), pre_length(1), pre_value(pre_length),
+  //                          post_type(1), post_length(1), post_value(post_length)
+  // For null value, only pre_type is written (no length and value)                              
   virtual std::string payload() override;
 
 private:
-  block_id pre_bid_;
-  tuple_id pre_tuple_id_;
-  block_id post_bid_;
-  tuple_id post_tuple_id_;
-  std::unordered_map<attribute_id, TypedValue>* pre_image_;
-  std::unordered_map<attribute_id, TypedValue>* post_image_;
-  /*
-  // The lowest 6 bits is value type, the 7th is null flag, the 8th is out-of-line data ownership flag
-  std::uint8_t pre_type_;
-  // The length of out-of-line data
-  std::uint8_t pre_length_;
-  // The byte value string of data
-  std::string pre_image_;
-  std::uint8_t post_type_;
-  std::uint8_t post_length_;
-  std::string post_image_;
-  */
+  block_id bid_;
+  tuple_id tuple_id_;
+  std::unordered_map<attribute_id, TypedValue>* old_value_;
+  std::unordered_map<attribute_id, TypedValue>* updated_value_;
 };
 
+/**
+ * Insert Log Record
+ */
+/**
+class InsertLogRecord : public LogRecord {
+public:
+  InsertLogRecord(TransactionId tid,
+                  block_id bid,
+                  tuple_id tupleId,
+                  Tuple& tuple);
 
+private:
+  block_id bid_;
+  tuple_id tuple_id_;
+  Tuple tuple_;
+}*/
 
 /**
  * Commit Log Record

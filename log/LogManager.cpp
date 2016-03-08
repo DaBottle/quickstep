@@ -7,77 +7,76 @@
 #include <string.h>
 #include <iostream>
 #include <fstream>
+#include <mutex>
 
 namespace quickstep {
   LogManager::LogManager() 
     : current_LSN_(1)
     , prev_LSN_(0)
     , log_table_() 
-    , in_queue_()
-    , record_count_(0)
-    , buffer_()  {}
+    , buffer_()
+    , mutex_()  {}
 
-  void LogManager::sendLogRequest(LogRecord* log_record) {
-    in_queue_.push(log_record);
+  void LogManager::logUpdate(TransactionId tid,
+                             block_id bid,
+                             tuple_id tupleId,
+                             std::unordered_map<attribute_id, TypedValue>* old_value,
+                             std::unordered_map<attribute_id, TypedValue>* updated_value) {
+    UpdateLogRecord* record = new UpdateLogRecord(tid, bid, tupleId, old_value, updated_value);
+    writeToBuffer(record);
   }
 
-  void LogManager::fetchNext() {
-    // Fetch a new record
-    LogRecord* log_record = in_queue_.popOne();
-    // Check if it is a force request
-    if (log_record->isForce()) {
-      std::uint32_t force_index = current_LSN_ >> Macros::kLOG_INDEX_SHIFT;
-      forceToDisk("LOG" + std::to_string(force_index));
-      return;
-    }
+  void LogManager::sendForceRequest() {
+    mutex_.lock();
+    std::uint32_t log_index = current_LSN_ >> Macros::kLOG_INDEX_SHIFT;
+    flushToDisk("LOG" + std::to_string(log_index));
+    mutex_.unlock();
+  }
 
-    std::string payload = log_record->payload();
+  // Write log to buffer
+  void LogManager::writeToBuffer(LogRecord* record) {
+    std::string payload = record->payload();
     int length = payload.length() + Macros::kHEADER_LENGTH;
 
-    // Add the LSN part to header
+    // Add the LSN part to header (crictical session regarding to LSN and buffer)
     // Three new fields:
     // current_LSN: the LSN of current log
     // prev_LSN: the LSN of previous log
     // trans_prev_LSN: the LSN of previous log for this transaction
+    mutex_.lock();
     LSN prev_LSN = prev_LSN_;
-    LSN trans_prev_LSN = log_table_.getPrevLSN(log_record->getTId());
-    LSN current_LSN = current_LSN_.fetch_add(length);
-    std::string LSNs = Helper::idToStr(current_LSN) + Helper::idToStr(prev_LSN) + Helper::idToStr(trans_prev_LSN);
+    LSN trans_prev_LSN = log_table_.getPrevLSN(record->getTId());
+    std::string LSNs = Helper::idToStr(current_LSN_) + Helper::idToStr(prev_LSN) + Helper::idToStr(trans_prev_LSN);
 
     // Get the final string value of the record
-    std::string record_str = Helper::intToStr(length) + log_record->header() + LSNs + payload;
+    std::string record_str = Helper::intToStr(length) + record->header() + LSNs + payload;
 
     // Write phase: write to buffer
-    std::uint32_t log_index = current_LSN >> Macros::kLOG_INDEX_SHIFT;
+    std::uint32_t log_index = current_LSN_ >> Macros::kLOG_INDEX_SHIFT;
     std::uint32_t pre_log_index = prev_LSN_ >> Macros::kLOG_INDEX_SHIFT;
     // The current log will be on a new file. Before writing, flush the buffer first
     if (log_index != pre_log_index) {
-      forceToDisk("LOG" + std::to_string(pre_log_index));
+      flushToDisk("LOG" + std::to_string(pre_log_index));
     }
     // write to buffer
     buffer_ += record_str;
 
     // Update private fields
-    prev_LSN_ = current_LSN;
-    ++record_count_;
+    prev_LSN_ = current_LSN_;
+    current_LSN_ += length;
+
     // Update log table
-    if (log_record->isComplete()) {
-      log_table_.remove(log_record->getTId());
+    if (record->isComplete()) {
+      log_table_.remove(record->getTId());
     }
     else {
-      log_table_.update(log_record->getTId(), current_LSN);
+      log_table_.update(record->getTId(), prev_LSN);
     }
-  }
-
-  void LogManager::sendForceRequest() {
-    LogRecord force((TransactionId) 0, LogRecord::LogRecordType::kFORCE);
-    in_queue_.push(&force);
-    std::uint64_t target = record_count_ + in_queue_.size();
-    while (record_count_ < target) {}
+    mutex_.unlock();  // End of critical session
   }
 
   // Write to disk
-  void LogManager::forceToDisk(std::string filename) {
+  void LogManager::flushToDisk(std::string filename) {
     std::ofstream myFile;
     myFile.open(filename, std::ios::out | std::ios::app);
     if (!myFile.is_open())  {
@@ -87,6 +86,11 @@ namespace quickstep {
     myFile << buffer_;
     buffer_.clear();
     myFile.close();
+  }
+
+  void LogManager::logEmpty(TransactionId tid) {
+    LogRecord* record = new LogRecord(tid, LogRecord::LogRecordType::kEMPTY);
+    writeToBuffer(record);
   }
 
   void LogManager::printHeader() {

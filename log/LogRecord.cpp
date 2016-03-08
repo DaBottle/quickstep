@@ -16,10 +16,6 @@ namespace quickstep {
     return tid_;
   }
 
-  bool LogRecord::isForce() {
-    return log_record_type_ == LogRecordType::kFORCE;
-  }
-
   bool LogRecord::isComplete() {
     return log_record_type_ == LogRecordType::kCOMMIT || log_record_type_ == LogRecordType::kABORT;
   }
@@ -37,59 +33,59 @@ namespace quickstep {
 
   // UpdateLogRecord
   UpdateLogRecord::UpdateLogRecord(TransactionId tid,
-                  block_id pre_bid,
-                  tuple_id pre_tuple_id,
-                  block_id post_bid,
-                  tuple_id post_tuple_id,
-                  std::unordered_map<attribute_id, TypedValue>* pre_image,
-                  std::unordered_map<attribute_id, TypedValue>* post_image)
+                  block_id bid,
+                  tuple_id tupleId,
+                  std::unordered_map<attribute_id, TypedValue>* old_value,
+                  std::unordered_map<attribute_id, TypedValue>* updated_value)
   : LogRecord(tid, LogRecordType::kUPDATE)
-  , pre_bid_(pre_bid)
-  , pre_tuple_id_(pre_tuple_id)
-  , post_bid_(post_bid)
-  , post_tuple_id_(post_tuple_id)
-  , pre_image_(pre_image)
-  , post_image_(post_image)  {}
+  , bid_(bid)
+  , tuple_id_(tupleId)
+  , old_value_(old_value)
+  , updated_value_(updated_value)  {}
 
   std::string UpdateLogRecord::payload() {
     std::string payload;
     // Location
-    payload += Helper::idToStr(pre_bid_) 
-              + Helper::intToStr(pre_tuple_id_) 
-              + Helper::idToStr(post_bid_) 
-              + Helper::intToStr(post_tuple_id_);
-    // Action
-    for (std::unordered_map<attribute_id, TypedValue>::const_iterator post_it
-            = post_image_->begin();
-         post_it != post_image_->end();
-         ++post_it) {
-      // Get the pre and post image, and write it to payload if there is a difference
-      std::unordered_map<attribute_id, TypedValue>::const_iterator pre_it
-          = pre_image_->find(post_it->first);
-      if (pre_it == pre_image_->end()) {
-        FATAL_ERROR("Unexpected result in UpdateLogRecord.payload(): Unknown attribute in post image");
+    payload += Helper::idToStr(bid_) 
+              + Helper::intToStr(tuple_id_);
+
+    // Store attribute_id, pre/post value pair only when they are different
+    for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
+            = updated_value_->begin();
+         update_it != updated_value_->end();
+         ++update_it) {
+      // Attribute ID
+      payload += Helper::intToStr(update_it->first);
+      
+      // pre type, length and value
+      TypedValue pre_value = old_value_->at(update_it->first);
+      std::uint8_t pre_type = pre_value.getTypeID()
+                           | (pre_value.isNull() << Macros::kNULL_SHIFT) 
+                           | (pre_value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
+      payload.append(1, (char) pre_type);
+      if (!pre_value.isNull()) {
+        std::uint8_t pre_length = pre_value.getDataSize() & 0xFF;
+        payload.append(1, (char) pre_length);
+        char* value = new char[(int) pre_length];
+        pre_value.copyInto(value);
+        payload += std::string(value);
       }
-      int pre_length = (int) pre_it->second.getDataSize();
-      int post_length = (int) post_it->second.getDataSize();
-      char* pre_typed_value = new char[pre_length];
-      char* post_typed_value = new char[post_length];
-      pre_it->second.copyInto(pre_typed_value);
-      post_it->second.copyInto(post_typed_value);
-      int pre_type = pre_it->second.getTypeID() 
-                   & (pre_it->second.isNull() << Macros::kNULL_SHIFT) 
-                   & (pre_it->second.ownsOutOfLineData() << Macros::kOWN_SHIFT);
-      int post_type = post_it->second.getTypeID() 
-                   & (post_it->second.isNull() << Macros::kNULL_SHIFT) 
-                   & (post_it->second.ownsOutOfLineData() << Macros::kOWN_SHIFT);
-      std::string pre_str = std::string(1, (char)pre_length)
-                          + std::string(1, (char)pre_type) 
-                          + std::string(pre_typed_value);
-      std::string post_str = std::string(1, (char)post_length) 
-                           + std::string(1, (char)post_type) 
-                           + std::string(post_typed_value);
-      if (pre_str.compare(post_str) != 0) {
-        payload += pre_str + post_str;
+
+      TypedValue post_value = update_it->second;
+      std::uint8_t post_type = post_value.getTypeID()
+                            | (post_value.isNull() << Macros::kNULL_SHIFT) 
+                            | (post_value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
+      payload.append(1, (char) post_type);
+      if (!post_value.isNull()) {
+        std::uint8_t post_length = post_value.getDataSize() & 0xFF;
+        payload.append(1, (char) post_length);
+        char* value = new char[(int) post_length];
+        post_value.copyInto(value);
+        payload += std::string(value);
       }
+      //if (!EqualComparison::Instance().compareTypedValuesChecked(pre_value, pre_value.getTypeID(), post_value, post_value.getTypeID())) {
+
+      //}
     }
         
     return payload;
