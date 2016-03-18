@@ -58,3 +58,16 @@ target_link_libraries(LogTable_unittest
 	                    gtest_main
                       quickstep_log_LogManager
                       quickstep_transaction_Transaction)
+
+add_executable(Helper_unittest
+              "${CMAKE_CURRENT_SOURCE_DIR}/tests/Helper_unittest.cpp")
+
+target_link_libraries(Helper_unittest
+                      gtest
+                      gtest_main
+                      quickstep_log_Helper
+                      quickstep_types_operations_comparisons_EqualComparison
+                      quickstep_types_Type
+                      quickstep_types_TypedValue
+                      quickstep_types_TypeFactory
+                      quickstep_types_TypeID)

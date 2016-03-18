@@ -5,6 +5,7 @@
 #include <string.h>
 #include <utility>
 
+// (TODO)1.Partition 2.lock 3.index 4.Jignesh 5.str->char* 6.fsync 
 namespace quickstep {
   // LogRecord
   LogRecord::LogRecord(TransactionId tid,
@@ -65,17 +66,18 @@ namespace quickstep {
     return payload;
   }
 
-  // InsertLogRecord
-  InsertLogRecord::InsertLogRecord(TransactionId tid,
+  // InsertDeleteLogRecord
+  InsertDeleteLogRecord::InsertDeleteLogRecord(TransactionId tid,
+                                   LogRecordType log_record_type,
                                    block_id bid,
                                    tuple_id tupleId,
                                    Tuple* tuple)
-  : LogRecord(tid, LogRecordType::kINSERT)
+  : LogRecord(tid, log_record_type)
   , bid_(bid)
   , tuple_id_(tupleId)
   , tuple_(tuple) {}
 
-  std::string InsertLogRecord::payload() {
+  std::string InsertDeleteLogRecord::payload() {
     std::string payload;
     // block_id and tuple_id
     payload += Helper::idToStr(bid_) + Helper::intToStr(tuple_id_);
@@ -87,6 +89,22 @@ namespace quickstep {
     }
     
     return payload;
+  }
+
+  // ShiftLogRecord
+  ShiftLogRecord::ShiftLogRecord(TransactionId tid,
+                                 block_id bid,
+                                 tuple_id pre_tuple_id,
+                                 tuple_id post_tuple_id)
+  : LogRecord(tid, LogRecordType::kSHIFT)
+  , bid_(bid)
+  , pre_tuple_id_(pre_tuple_id)
+  , post_tuple_id_(post_tuple_id) {}
+
+  std::string ShiftLogRecord::payload() {
+    return Helper::idToStr(bid_) 
+           + Helper::intToStr(pre_tuple_id_) 
+           + Helper::intToStr(post_tuple_id_);
   }
 
   // CommitLogRecord

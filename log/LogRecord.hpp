@@ -32,6 +32,7 @@ public:
     kCHECKPOINT = 5,
     kINSERT = 6,
     kDELETE = 7,
+    kSHIFT = 8,
   };
 
   LogRecord(TransactionId tid,
@@ -81,16 +82,17 @@ private:
 };
 
 /**
- * Insert Log Record
+ * Insert/Delete Log Record
  */
-class InsertLogRecord : public LogRecord {
+class InsertDeleteLogRecord : public LogRecord {
 public:
-  InsertLogRecord(TransactionId tid,
+  InsertDeleteLogRecord(TransactionId tid,
+                  LogRecordType log_record_type,
                   block_id bid,
                   tuple_id tupleId,
                   Tuple* tuple);
 
-  // Format of insert log payload:
+  // Format of insert/delete log payload:
   // bid(8) tuple_id(4)
   // For each attribute: pre_type(1), pre_length(1), pre_value(pre_length)
   // for null value, only pre_type is written
@@ -101,6 +103,25 @@ private:
   tuple_id tuple_id_;
   Tuple* tuple_;
 };
+
+/**
+ * Shift Log Record
+ */
+class ShiftLogRecord : public LogRecord {
+public:
+  ShiftLogRecord(TransactionId tid,
+                block_id bid,
+                tuple_id pre_tuple_id,
+                tuple_id post_tuple_id);
+
+  virtual std::string payload() override;
+
+private:
+  block_id bid_;
+  tuple_id pre_tuple_id_;
+  tuple_id post_tuple_id_;
+};
+
 
 /**
  * Commit Log Record

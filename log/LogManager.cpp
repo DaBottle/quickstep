@@ -31,7 +31,23 @@ namespace quickstep {
                              block_id bid,
                              tuple_id tupleId,
                              Tuple* tuple) {
-    InsertLogRecord* record = new InsertLogRecord(tid, bid, tupleId, tuple);
+    InsertDeleteLogRecord* record = new InsertDeleteLogRecord(tid, LogRecord::LogRecordType::kINSERT, bid, tupleId, tuple);
+    writeToBuffer(record);
+  }
+
+  void LogManager::logDelete(TransactionId tid,
+                             block_id bid,
+                             tuple_id tupleId,
+                             Tuple* tuple) {
+    InsertDeleteLogRecord* record = new InsertDeleteLogRecord(tid, LogRecord::LogRecordType::kDELETE, bid, tupleId, tuple);
+    writeToBuffer(record);
+  }
+
+  void LogManager::logShift(TransactionId tid,
+                            block_id bid,
+                            tuple_id pre_tuple_id,
+                            tuple_id post_tuple_id) {
+    ShiftLogRecord* record = new ShiftLogRecord(tid, bid, pre_tuple_id, post_tuple_id);
     writeToBuffer(record);
   }
 
@@ -84,7 +100,7 @@ namespace quickstep {
     mutex_.unlock();  // End of critical session
   }
 
-  // Write to disk
+  // Write to disk: fsync()
   void LogManager::flushToDisk(std::string filename) {
     std::ofstream myFile;
     myFile.open(filename, std::ios::out | std::ios::app);

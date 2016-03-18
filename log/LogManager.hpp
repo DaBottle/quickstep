@@ -35,6 +35,16 @@ public:
                  tuple_id tupleId,
                  Tuple* tuple);
 
+  void logDelete(TransactionId tid,
+                 block_id bid,
+                 tuple_id tupleId,
+                 Tuple* tuple);
+// Not needed, will be handled by logDelete
+  void logShift(TransactionId tid,
+                block_id bid,
+                tuple_id pre_tuple_id,
+                tuple_id post_tuple_id);
+
   // API for flush to disk
   void sendForceRequest();
 
