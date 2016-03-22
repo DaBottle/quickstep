@@ -30,17 +30,17 @@ namespace quickstep {
     std::uint8_t info = value.getTypeID()
                       | (value.isNull() << Macros::kNULL_SHIFT) 
                       | (value.ownsOutOfLineData() << Macros::kOWN_SHIFT);
+    info += 0;
     str.append(1, (char) info);
     if (!value.isNull()) {
-      int length = value.getDataSize();
+      std::uint64_t length = value.getDataSize();
       if (value.getTypeID() == kChar || value.getTypeID() == kVarChar) {
-        str.append(1, (char) length);
+        str += Helper::idToStr(length);
       }
       char* value_copy = new char[length];
       value.copyInto(value_copy);
       str += std::string(value_copy, length);
     }
-    
     return str;
   }
 
@@ -55,15 +55,17 @@ namespace quickstep {
     }
     // Non-numeric data
     if (type == kChar || type == kVarChar) {
-      std::uint8_t length = str.at(1);
+      std::uint64_t length = Helper::strToId(str.substr(1, 8));
       char* value_ptr;
       if (owns) {
         value_ptr = (char*) malloc(length);
-        strcpy(value_ptr, str.substr(2).c_str());
+        strcpy(value_ptr, str.c_str() + 9 * sizeof(char));
         return TypedValue::CreateWithOwnedData(type, value_ptr, length);
       }
       else {
-        return TypedValue(type, str.substr(2).c_str(), length);
+        char* data = new char[length];
+        strcpy(data, str.c_str() + 9 * sizeof(char));
+        return TypedValue(type, data, length);
       }
     }
     // Numeric data

@@ -94,7 +94,6 @@ TEST(HelperTest, TypedValueStringTest) {
   std::string char_str = "char type";
   TypedValue pre_char_value(kChar, char_str.c_str(), char_str.length());
   TypedValue post_char_value = Helper::strToValue(Helper::valueToStr(pre_char_value));
-  EXPECT_EQ(pre_char_value.getDataSize(), post_char_value.getDataSize());
   EXPECT_EQ(true, 
             EqualComparison::Instance().compareTypedValuesChecked(pre_char_value, 
                                                                   TypeFactory::GetType(pre_char_value.getTypeID(), pre_char_value.getDataSize()), 

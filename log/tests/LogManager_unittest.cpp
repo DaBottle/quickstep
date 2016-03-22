@@ -61,7 +61,6 @@ TEST(LogManagerTest, HeaderTranslationTest) {
   EXPECT_EQ(prev_LSN_1, Helper::strToId(buffer.substr(Macros::kPREV_LSN_START, sizeof(LSN))));
   EXPECT_EQ(trans_prev_LSN_1, Helper::strToId(buffer.substr(Macros::kTRANS_PREV_LSN_START, sizeof(LSN))));
 }
-
 /*
 // Test if the update log record could be handled properly
 TEST(LogManagerTest, UpdateTest) {
@@ -86,14 +85,30 @@ TEST(LogManagerTest, UpdateTest) {
   // Write log
   std::unordered_map<attribute_id, TypedValue> old_value = {{aid_int, old_int}, {aid_long, old_long}, {aid_nonnum, old_nonnum}};
   std::unordered_map<attribute_id, TypedValue> new_value = {{aid_int, new_int}, {aid_long, new_long}, {aid_nonnum, new_nonnum}};
+  std::unordered_map<attribute_id, TypedValue>::iterator it;
   log_manager.logUpdate(tid, bid, tupleId, &old_value, &new_value);
   // Check translation
+  // Check bid and tuple_id
   std::string payload = log_manager.buffer_.substr(Macros::kHEADER_LENGTH);
   int index = 0;
   EXPECT_EQ(bid, Helper::strToId(payload.substr(index, (int) sizeof(bid))));
   index += sizeof(bid);
-  EXPECT_EQ(tupleId, Helper::strToInt(payload.substr(index, (int) sizeof(tupleId))));
+  EXPECT_EQ(tupleId, (int) Helper::strToInt(payload.substr(index, (int) sizeof(tupleId))));
   index += sizeof(tupleId);
+  // Check each attribute
+  while (index < payload.length()) {
+    attribute_id aid = Helper::strToInt(payload.substr(index, sizeof(attribute_id)));
+    index += sizeof(attribute_id);
+    // Get the expected values
+    it = old_value.find(aid);
+    DEBUG_ASSERT(it != old_value.end());
+    TypedValue pre_expect = it->second;
+    it = new_value.find(aid);
+    DEBUG_ASSERT(it != old_value.end());
+    TypedValue post_expect = it->second;
+    // Get the logged values
+    
+  }
   for (std::unordered_map<attribute_id, TypedValue>::iterator it = old_value.begin();
        it != old_value.end();
        it++) {
@@ -127,8 +142,8 @@ TEST(LogManagerTest, UpdateTest) {
       index += post_length;
     }
   }
-}
-
+}*/
+/*
 // Test if insert/delete log record could be handled correctly
 // Only test insert because delete is different only in header, which is tested in HeaderTranslationTest
 TEST(LogManagerTest, InsertTest) {
