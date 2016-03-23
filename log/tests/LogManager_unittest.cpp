@@ -4,6 +4,8 @@
 #include "log/Macros.hpp"
 #include "transaction/Transaction.hpp"
 #include "types/containers/Tuple.hpp"
+#include "types/operations/comparisons/EqualComparison.hpp"
+#include "types/TypeFactory.hpp"
 #include "types/TypeID.hpp"
 #include <string.h>
 #include <vector>
@@ -61,7 +63,7 @@ TEST(LogManagerTest, HeaderTranslationTest) {
   EXPECT_EQ(prev_LSN_1, Helper::strToId(buffer.substr(Macros::kPREV_LSN_START, sizeof(LSN))));
   EXPECT_EQ(trans_prev_LSN_1, Helper::strToId(buffer.substr(Macros::kTRANS_PREV_LSN_START, sizeof(LSN))));
 }
-/*
+
 // Test if the update log record could be handled properly
 TEST(LogManagerTest, UpdateTest) {
   LogManager log_manager;
@@ -96,7 +98,7 @@ TEST(LogManagerTest, UpdateTest) {
   EXPECT_EQ(tupleId, (int) Helper::strToInt(payload.substr(index, (int) sizeof(tupleId))));
   index += sizeof(tupleId);
   // Check each attribute
-  while (index < payload.length()) {
+  while (index < (int)payload.length()) {
     attribute_id aid = Helper::strToInt(payload.substr(index, sizeof(attribute_id)));
     index += sizeof(attribute_id);
     // Get the expected values
@@ -107,43 +109,20 @@ TEST(LogManagerTest, UpdateTest) {
     DEBUG_ASSERT(it != old_value.end());
     TypedValue post_expect = it->second;
     // Get the logged values
-    
-  }
-  for (std::unordered_map<attribute_id, TypedValue>::iterator it = old_value.begin();
-       it != old_value.end();
-       it++) {
-    EXPECT_EQ(it->first, Helper::strToInt(payload.substr(index, (int) sizeof(attribute_id))));
-    index += sizeof(attribute_id);
-    // pre_value
-    TypedValue pre_value = it->second;
-    EXPECT_EQ(pre_value.getTypeID(), payload.at(index) & Macros::kTYPE_MASK);
-    EXPECT_EQ(pre_value.isNull(), (payload.at(index) >> Macros::kNULL_SHIFT) & (std::uint8_t) 0x01);
-    EXPECT_EQ(pre_value.ownsOutOfLineData(), payload.at(index++) >> Macros::kOWN_SHIFT);
-    // Only check length and data if not null
-    if (!it->second.isNull()) {
-      std::uint8_t pre_length = it->second.getDataSize();
-      EXPECT_EQ(pre_length, payload.at(index++));
-      char* pre_copy = new char[pre_length];
-      it->second.copyInto(pre_copy);
-      EXPECT_EQ(std::string(pre_copy, pre_length), payload.substr(index, pre_length));
-      index += pre_length;
+    TypedValue pre_log = Helper::strToValue(payload.substr(index));
+    index += Helper::valueLength(pre_log);
+    TypedValue post_log = Helper::strToValue(payload.substr(index));
+    index += Helper::valueLength(post_log);
+    // Compare
+    if (!pre_log.isNull() || !pre_expect.isNull()) {
+      EXPECT_TRUE(Helper::valueEqual(pre_log, pre_expect));
     }
-    // post value
-    TypedValue post_value = new_value[it->first];
-    EXPECT_EQ(post_value.getTypeID(), payload.at(index) & Macros::kTYPE_MASK);
-    EXPECT_EQ(post_value.isNull(), (payload.at(index) >> Macros::kNULL_SHIFT) & (std::uint8_t) 0x01);
-    EXPECT_EQ(post_value.ownsOutOfLineData(), payload.at(index++) >> Macros::kOWN_SHIFT);
-    if (!post_value.isNull()) {
-      std::uint8_t post_length = post_value.getDataSize();
-      EXPECT_EQ(post_length, payload.at(index++));
-      char* post_copy = new char[post_length];
-      post_value.copyInto(post_copy);
-      EXPECT_EQ(std::string(post_copy, post_length), payload.substr(index, post_length));
-      index += post_length;
+    if (!post_log.isNull() || !post_expect.isNull()) {
+      EXPECT_TRUE(Helper::valueEqual(post_log, post_expect));
     }
   }
-}*/
-/*
+}
+
 // Test if insert/delete log record could be handled correctly
 // Only test insert because delete is different only in header, which is tested in HeaderTranslationTest
 TEST(LogManagerTest, InsertTest) {
@@ -166,26 +145,21 @@ TEST(LogManagerTest, InsertTest) {
   int index = 0;
   EXPECT_EQ(bid, Helper::strToId(payload.substr(index, sizeof(bid))));
   index += sizeof(bid);
-  EXPECT_EQ(tupleId, Helper::strToInt(payload.substr(index, sizeof(tupleId))));
+  EXPECT_EQ(tupleId, (int)Helper::strToInt(payload.substr(index, sizeof(tupleId))));
   index += sizeof(tupleId);
   // Check each value in the tuple
   for (Tuple::const_iterator value_it = tuple.begin();
        value_it != tuple.end();
        value_it++) {
-    TypedValue value = *value_it;
-    EXPECT_EQ(value.getTypeID(), payload.at(index) & Macros::kTYPE_MASK);
-    EXPECT_EQ(value.isNull(), (payload.at(index) >> Macros::kNULL_SHIFT) & (std::uint8_t) 0x01);
-    EXPECT_EQ(value.ownsOutOfLineData(), payload.at(index++) >> Macros::kOWN_SHIFT);
-    if (!value.isNull()) {
-      std::uint8_t length = value.getDataSize();
-      EXPECT_EQ(length, payload.at(index++));
-      char* copy = new char[length];
-      value.copyInto(copy);
-      EXPECT_EQ(std::string(copy, length), payload.substr(index, length));
-      index += length;
+    TypedValue value_expect = *value_it;
+    TypedValue value_log = Helper::strToValue(payload.substr(index));
+    index += Helper::valueLength(value_log);
+    if (!value_expect.isNull() || !value_log.isNull()) {  
+      EXPECT_TRUE(Helper::valueEqual(value_expect, value_log));
     }
   }
-}*/
+  EXPECT_EQ((int)payload.length(), index);
+}
 
 /*
 // Test if the log table would behave properly upon transaction commission and abortion

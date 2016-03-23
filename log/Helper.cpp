@@ -2,6 +2,7 @@
 #include "log/Macros.hpp"
 #include "types/DatetimeLit.hpp"
 #include "types/IntervalLit.hpp"
+#include "types/operations/comparisons/EqualComparison.hpp"
 #include "types/TypeID.hpp"
 #include <string.h>
 #include <cstdint>
@@ -59,12 +60,12 @@ namespace quickstep {
       char* value_ptr;
       if (owns) {
         value_ptr = (char*) malloc(length);
-        strcpy(value_ptr, str.c_str() + 9 * sizeof(char));
+        strcpy(value_ptr, str.substr(9, length).c_str());
         return TypedValue::CreateWithOwnedData(type, value_ptr, length);
       }
       else {
         char* data = new char[length];
-        strcpy(data, str.c_str() + 9 * sizeof(char));
+        strcpy(data, str.substr(9, length).c_str());
         return TypedValue(type, data, length);
       }
     }
@@ -73,28 +74,62 @@ namespace quickstep {
     std::uint64_t val_64;
     switch (type) {
       case kInt:
-        val_32 = Helper::strToInt(str.substr(1));
+        val_32 = Helper::strToInt(str.substr(1, 4));
         return TypedValue(*reinterpret_cast<int*>(&val_32));
       case kFloat:
-        val_32 = Helper::strToInt(str.substr(1));
+        val_32 = Helper::strToInt(str.substr(1, 4));
         return TypedValue((float)*reinterpret_cast<float*>(&val_32));
       case kLong:
-        val_64 = Helper::strToId(str.substr(1));
+        val_64 = Helper::strToId(str.substr(1, 8));
         return TypedValue(*reinterpret_cast<long*>(&val_64));
       case kDouble:
-        val_64 = Helper::strToId(str.substr(1));
+        val_64 = Helper::strToId(str.substr(1, 8));
         return TypedValue(*reinterpret_cast<double*>(&val_64));
       case kDatetime:
-        return TypedValue(DatetimeLit{(std::int64_t)Helper::strToId(str.substr(1))});
+        return TypedValue(DatetimeLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
       case kDatetimeInterval:
-        return TypedValue(DatetimeIntervalLit{(std::int64_t)Helper::strToId(str.substr(1))});
+        return TypedValue(DatetimeIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
       case kYearMonthInterval:
-        return TypedValue(YearMonthIntervalLit{(std::int64_t)Helper::strToId(str.substr(1))});
+        return TypedValue(YearMonthIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
       default:
         return TypedValue(0);
     }
     
     return TypedValue(0);
+  }
+
+  int Helper::valueLength(TypedValue value) {
+    if (value.isNull()) {
+      return 1;
+    }
+    TypeID type = value.getTypeID();
+    if (type == kChar || type == kVarChar) {
+      return value.getDataSize() + 9;
+    }
+    else {
+      return value.getDataSize() + 1;
+    }
+  }
+
+  bool Helper::valueEqual(TypedValue value1, TypedValue value2) {
+    if (value1.isNull() || value2.isNull()) {
+      return false;
+    }
+    if (value1.getTypeID() != value2.getTypeID()) {
+      return false;
+    }
+    if (value1.getTypeID() == kChar || value2.getTypeID() == kVarChar) {
+      return EqualComparison::Instance().compareTypedValuesChecked(value1, 
+              TypeFactory::GetType(value1.getTypeID(), value1.getDataSize()), 
+              value2, 
+              TypeFactory::GetType(value2.getTypeID(), value2.getDataSize()));
+    }
+    else {
+      return EqualComparison::Instance().compareTypedValuesChecked(value1, 
+              TypeFactory::GetType(value1.getTypeID()), 
+              value2, 
+              TypeFactory::GetType(value2.getTypeID()));
+    }
   }
 
 } // namespace quickstep

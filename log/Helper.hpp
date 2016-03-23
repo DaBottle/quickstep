@@ -27,6 +27,12 @@ public:
   static std::string valueToStr(TypedValue value);
 
   static TypedValue strToValue(std::string);
+
+  // get the length of the logged TypedValue
+  static int valueLength(TypedValue value);
+
+  // Judge if two TypedValue's equal to each other
+  static bool valueEqual(TypedValue value1, TypedValue value2);
 };
 
 } // namespace quickstep
