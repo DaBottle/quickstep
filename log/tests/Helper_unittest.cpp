@@ -124,6 +124,4 @@ TEST(HelperTest, ValueLengthTest) {
   EXPECT_EQ(1, Helper::valueLength(null_value));
 }
 
-
-
 } // namespace quickstep

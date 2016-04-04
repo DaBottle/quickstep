@@ -17,45 +17,45 @@ namespace quickstep {
 // Test if LSN increments as expected
 TEST(LogManagerTest, LSNTest) {
   LogManager log_manager;
-  EXPECT_EQ(log_manager.current_LSN_, (LSN) 1);
-  EXPECT_EQ(log_manager.prev_LSN_, (LSN) 0);
+  EXPECT_EQ(log_manager.getCurrentLSN(), (LSN) 1);
+  EXPECT_EQ(log_manager.getPrevLSN(), (LSN) 0);
 
   // Add first record
   log_manager.logEmpty(TransactionId (1));
-  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH), log_manager.current_LSN_);
-  EXPECT_EQ((LSN) 1, log_manager.prev_LSN_);
+  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH), log_manager.getCurrentLSN());
+  EXPECT_EQ((LSN) 1, log_manager.getPrevLSN());
 
   // Add second record 
   log_manager.logEmpty(TransactionId (2));
-  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH * 2), log_manager.current_LSN_);
-  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH), log_manager.prev_LSN_);
+  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH * 2), log_manager.getCurrentLSN());
+  EXPECT_EQ((LSN) (1 + Macros::kHEADER_LENGTH), log_manager.getPrevLSN());
 }
 
 
 // Test if buffer has the correct size (after writing and forcing to disk)
 TEST(LogManagerTest, BufferSizeTest) {
   LogManager log_manager;
-  EXPECT_EQ((int)log_manager.buffer_.length(), 0);
+  EXPECT_EQ((int)log_manager.getBuffer().length(), 0);
 
   // Write a record
   log_manager.logEmpty(TransactionId(1));
-  EXPECT_EQ(Macros::kHEADER_LENGTH + 0, (int)log_manager.buffer_.length());
+  EXPECT_EQ(Macros::kHEADER_LENGTH + 0, (int)log_manager.getBuffer().length());
 
   // Force to disk
   log_manager.flushToDisk("LOG");
-  EXPECT_EQ(0, (int)log_manager.buffer_.length());
+  EXPECT_EQ(0, (int)log_manager.getBuffer().length());
 }
 
 // Test if the header is translated correctly
 TEST(LogManagerTest, HeaderTranslationTest) {
   LogManager log_manager;
   // Record the record header
-  std::uint64_t current_LSN_1 = log_manager.current_LSN_;
-  std::uint64_t prev_LSN_1 = log_manager.prev_LSN_;
-  std::uint64_t trans_prev_LSN_1 = log_manager.log_table_.getPrevLSN((TransactionId) 1);
+  std::uint64_t current_LSN_1 = log_manager.getCurrentLSN();
+  std::uint64_t prev_LSN_1 = log_manager.getPrevLSN();
+  std::uint64_t trans_prev_LSN_1 = log_manager.getTransPrevLSN((TransactionId) 1);
   log_manager.logEmpty(TransactionId(1));
   // Check every fields' translation in the buffer
-  std::string buffer = log_manager.buffer_;
+  std::string buffer = log_manager.getBuffer();
   EXPECT_EQ(buffer.length(), Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int))));
   EXPECT_EQ((int)LogRecord::LogRecordType::kEMPTY, (int)buffer.at(Macros::kTYPE_START));
   EXPECT_EQ((TransactionId) 1, Helper::strToId(buffer.substr(Macros::kTID_START, sizeof(TransactionId))));
@@ -91,7 +91,7 @@ TEST(LogManagerTest, UpdateTest) {
   log_manager.logUpdate(tid, bid, tupleId, &old_value, &new_value);
   // Check translation
   // Check bid and tuple_id
-  std::string payload = log_manager.buffer_.substr(Macros::kHEADER_LENGTH);
+  std::string payload = log_manager.getBuffer().substr(Macros::kHEADER_LENGTH);
   int index = 0;
   EXPECT_EQ(bid, Helper::strToId(payload.substr(index, (int) sizeof(bid))));
   index += sizeof(bid);
@@ -125,7 +125,7 @@ TEST(LogManagerTest, UpdateTest) {
 
 // Test if insert/delete log record could be handled correctly
 // Only test insert because delete is different only in header, which is tested in HeaderTranslationTest
-TEST(LogManagerTest, InsertTest) {
+TEST(LogManagerTest, InsertDeleteTest) {
   LogManager log_manager;
   TransactionId tid(1);  
   block_id bid(2);
@@ -140,9 +140,31 @@ TEST(LogManagerTest, InsertTest) {
   // Insert  
   log_manager.logInsert(tid, bid, tupleId, &tuple);
   // Check payload
-  std::string payload = log_manager.buffer_.substr(Macros::kHEADER_LENGTH);
+  std::string payload = log_manager.getBuffer().substr();
   // block_id and tuple_id  
-  int index = 0;
+  int index = Macros::kHEADER_LENGTH;
+  EXPECT_EQ(bid, Helper::strToId(payload.substr(index, sizeof(bid))));
+  index += sizeof(bid);
+  EXPECT_EQ(tupleId, (int)Helper::strToInt(payload.substr(index, sizeof(tupleId))));
+  index += sizeof(tupleId);
+  // Check each value in the tuple
+  for (Tuple::const_iterator value_it = tuple.begin();
+       value_it != tuple.end();
+       value_it++) {
+    TypedValue value_expect = *value_it;
+    TypedValue value_log = Helper::strToValue(payload.substr(index));
+    index += Helper::valueLength(value_log);
+    if (!value_expect.isNull() || !value_log.isNull()) {  
+      EXPECT_TRUE(Helper::valueEqual(value_expect, value_log));
+    }
+  }
+  EXPECT_EQ((int)payload.length(), index);
+
+  log_manager.logDelete(tid, bid, tupleId, &tuple);
+  // Check payload
+  payload = log_manager.buffer_;
+  index += Macros::kHEADER_LENGTH;
+  // block_id and tuple_id  
   EXPECT_EQ(bid, Helper::strToId(payload.substr(index, sizeof(bid))));
   index += sizeof(bid);
   EXPECT_EQ(tupleId, (int)Helper::strToInt(payload.substr(index, sizeof(tupleId))));

@@ -43,20 +43,28 @@ namespace quickstep {
     writeToBuffer(record);
   }
 
-  void LogManager::logShift(TransactionId tid,
-                            block_id bid,
-                            tuple_id pre_tuple_id,
-                            tuple_id post_tuple_id) {
-    ShiftLogRecord* record = new ShiftLogRecord(tid, bid, pre_tuple_id, post_tuple_id);
-    writeToBuffer(record);
-  }
-
   void LogManager::sendForceRequest() {
     mutex_.lock();
     std::uint32_t log_index = current_LSN_ >> Macros::kLOG_INDEX_SHIFT;
     flushToDisk("LOG" + std::to_string(log_index));
     mutex_.unlock();
   }
+
+  std::string LogManager::getBuffer() {
+    return buffer_;
+  }
+
+  LSN LogManager::getCurrentLSN() {
+    return current_LSN_;
+  }
+
+  LSN LogManager::getPrevLSN() {
+    return prev_LSN_;
+  }
+
+  LSN LogManager::getTransPrevLSN(TransactionId tid) {
+    return log_table_.getPrevLSN(tid);
+  }    
 
   // Write log to buffer
   void LogManager::writeToBuffer(LogRecord* record) {
@@ -116,29 +124,6 @@ namespace quickstep {
   void LogManager::logEmpty(TransactionId tid) {
     LogRecord* record = new LogRecord(tid, LogRecord::LogRecordType::kEMPTY);
     writeToBuffer(record);
-  }
-
-  void LogManager::printHeader() {
-    int i;
-    std::ofstream myFile ("header.test", std::ios::out | std::ios::trunc); 
-    while (i < (int)buffer_.length()) {
-      // Read header
-      int length = Helper::strToInt(buffer_.substr(Macros::kLENGTH_START, Macros::kLENGTH_END));
-      uint8_t type = buffer_.at(Macros::kTYPE_START);
-      TransactionId tid = Helper::strToId(buffer_.substr(Macros::kTID_START, Macros::kTID_END));
-      LSN current_LSN = Helper::strToId(buffer_.substr(Macros::kCURRENT_LSN_START, Macros::kCURRENT_LSN_END));
-      LSN prev_LSN = Helper::strToId(buffer_.substr(Macros::kPREV_LSN_START, Macros::kPREV_LSN_END));
-      LSN trans_prev_LSN = Helper::strToId(buffer_.substr(Macros::kTRANS_PREV_LSN_START, Macros::kTRANS_PREV_LSN_END));
-      // Output header
-      myFile << "length: " << length << '\n';
-      myFile << "type: " << type << '\n';
-      myFile << "Transaction ID: " << tid << '\n';
-      myFile << "Current LSN: " << current_LSN << '\n';
-      myFile << "previous LSN: " << prev_LSN << '\n';
-      myFile << "previous LSN for this transaction: " << trans_prev_LSN << '\n';
-      
-      i += length;      
-    } 
   }
 
 } // namespace quickstep

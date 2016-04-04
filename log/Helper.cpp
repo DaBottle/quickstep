@@ -3,6 +3,7 @@
 #include "types/DatetimeLit.hpp"
 #include "types/IntervalLit.hpp"
 #include "types/operations/comparisons/EqualComparison.hpp"
+#include "types/TypeFactory.hpp"
 #include "types/TypeID.hpp"
 #include <string.h>
 #include <cstdint>
@@ -74,23 +75,23 @@ namespace quickstep {
     std::uint64_t val_64;
     switch (type) {
       case kInt:
-        val_32 = Helper::strToInt(str.substr(1, 4));
+        val_32 = Helper::strToInt(str.substr(1, sizeof(int)));
         return TypedValue(*reinterpret_cast<int*>(&val_32));
       case kFloat:
-        val_32 = Helper::strToInt(str.substr(1, 4));
+        val_32 = Helper::strToInt(str.substr(1, sizeof(int)));
         return TypedValue((float)*reinterpret_cast<float*>(&val_32));
       case kLong:
-        val_64 = Helper::strToId(str.substr(1, 8));
+        val_64 = Helper::strToId(str.substr(1, sizeof(double)));
         return TypedValue(*reinterpret_cast<long*>(&val_64));
       case kDouble:
-        val_64 = Helper::strToId(str.substr(1, 8));
+        val_64 = Helper::strToId(str.substr(1, sizeof(double)));
         return TypedValue(*reinterpret_cast<double*>(&val_64));
       case kDatetime:
-        return TypedValue(DatetimeLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
+        return TypedValue(DatetimeLit{(std::int64_t)Helper::strToId(str.substr(1, sizeof(double)))});
       case kDatetimeInterval:
-        return TypedValue(DatetimeIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
+        return TypedValue(DatetimeIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, sizeof(double)))});
       case kYearMonthInterval:
-        return TypedValue(YearMonthIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, 8))});
+        return TypedValue(YearMonthIntervalLit{(std::int64_t)Helper::strToId(str.substr(1, sizeof(double)))});
       default:
         return TypedValue(0);
     }

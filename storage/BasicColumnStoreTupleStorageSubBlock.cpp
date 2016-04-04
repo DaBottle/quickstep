@@ -30,6 +30,7 @@
 #include "expressions/predicate/Predicate.hpp"
 #include "expressions/predicate/PredicateCost.hpp"
 #include "expressions/scalar/Scalar.hpp"
+#include "log/LogManager.hpp"
 #include "storage/BasicColumnStoreValueAccessor.hpp"
 #include "storage/ColumnStoreUtil.hpp"
 #include "storage/StorageBlockInfo.hpp"

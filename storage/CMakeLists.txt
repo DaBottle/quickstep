@@ -700,6 +700,7 @@ target_link_libraries(quickstep_storage_StorageBlock
                       quickstep_expressions_aggregation_AggregationHandle
                       quickstep_expressions_predicate_Predicate
                       quickstep_expressions_scalar_Scalar
+                      quickstep_log_LogManager
                       quickstep_storage_BasicColumnStoreTupleStorageSubBlock
                       quickstep_storage_CSBTreeIndexSubBlock
                       quickstep_storage_CompressedColumnStoreTupleStorageSubBlock
@@ -720,6 +721,7 @@ target_link_libraries(quickstep_storage_StorageBlock
                       quickstep_storage_TupleStorageSubBlock
                       quickstep_storage_ValueAccessor
                       quickstep_storage_ValueAccessorUtil
+                      quickstep_transaction_Transaction
                       quickstep_types_TypedValue
                       quickstep_types_containers_ColumnVector
                       quickstep_types_containers_ColumnVectorsValueAccessor
@@ -1174,6 +1176,41 @@ target_link_libraries(PackedRowStoreTupleStorageSubBlock_unittest
                       quickstep_utility_ScopedBuffer
                       ${LIBS})
 add_test(PackedRowStoreTupleStorageSubBlock_unittest PackedRowStoreTupleStorageSubBlock_unittest)
+
+add_executable(Redo_unittest
+               "${CMAKE_CURRENT_SOURCE_DIR}/tests/Redo_unittest.cpp")
+target_link_libraries(Redo_unittest
+                      gtest
+                      gtest_main
+                      glog
+                      quickstep_catalog_CatalogAttribute
+                      quickstep_catalog_CatalogRelation
+                      quickstep_expressions_predicate_ComparisonPredicate
+                      quickstep_expressions_scalar_Scalar
+                      quickstep_expressions_scalar_ScalarAttribute
+                      quickstep_expressions_scalar_ScalarLiteral
+                      quickstep_log_Helper
+                      quickstep_log_LogManager
+                      quickstep_log_LogRecord
+                      quickstep_log_Macros
+                      quickstep_storage_InsertDestination
+                      quickstep_storage_StorageBlockLayout
+                      quickstep_storage_StorageManager
+                      quickstep_storage_ValueAccessor
+                      quickstep_storage_ValueAccessorUtil
+                      quickstep_types_CharType
+                      quickstep_types_DoubleType
+                      quickstep_types_FloatType
+                      quickstep_types_IntType
+                      quickstep_types_LongType
+                      quickstep_types_TypeID
+                      quickstep_types_VarCharType
+                      quickstep_types_containers_Tuple
+                      quickstep_types_operations_comparisons_ComparisonFactory
+                      quickstep_types_operations_comparisons_ComparisonID
+                      tmb
+                      ${LIBS})
+add_test(Redo_unittest Redo_unittest)
 
 add_executable(SeparateChainingHashTable_unittest
                "${CMAKE_CURRENT_SOURCE_DIR}/tests/SeparateChainingHashTable_unittest.cpp")

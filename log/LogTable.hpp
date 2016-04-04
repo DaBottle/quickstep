@@ -3,10 +3,11 @@
 
 #include <unordered_map>
 #include "transaction/Transaction.hpp"
-#include "log/LogRecord.hpp"
 #include "gtest/gtest_prod.h"
 
 namespace quickstep {
+
+typedef std::uint64_t LSN;
 
 class LogTable {
 public:

@@ -434,7 +434,9 @@ void StorageBlock::aggregateGroupBy(
 StorageBlock::UpdateResult StorageBlock::update(
     const unordered_map<attribute_id, unique_ptr<const Scalar>> &assignments,
     const Predicate *predicate,
-    InsertDestinationInterface *relocation_destination) {
+    InsertDestinationInterface *relocation_destination,
+    TransactionId tid,
+    LogManager *log_manager) {
   if (relation_.getID() != relocation_destination->getRelation().getID()) {
     FATAL_ERROR("StorageBlock::update() called with a relocation_destination "
                 "that does not belong to the same relation.");
@@ -486,6 +488,21 @@ StorageBlock::UpdateResult StorageBlock::update(
     // reinserting.
     if (!relocate_all
         && tuple_store_->canSetAttributeValuesInPlaceTyped(*match_it, *updated_values)) {
+      // Get the old values
+      std::unique_ptr<std::unordered_map<attribute_id, TypedValue>>
+          old_values(new std::unordered_map<attribute_id, TypedValue>());
+      for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
+               = updated_values->begin();
+           update_it != updated_values->end();
+           ++update_it) {
+        (*old_values)[update_it->first] = 
+           tuple_store_->getAttributeValueTyped(*match_it, update_it->first);
+      }
+
+      // Write update log
+      log_manager->logUpdate(tid, id_, *match_it, old_values.get(),
+                            updated_values.get());
+      
       // Update attribute values in place.
       for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
                = updated_values->begin();
@@ -514,6 +531,7 @@ StorageBlock::UpdateResult StorageBlock::update(
       relocation_buffer.emplace_back(std::move(updated_tuple_values));
       relocate_ids.set(*match_it, true);
     }
+
   }
 
   bool rebuild_all = false;
@@ -607,6 +625,17 @@ StorageBlock::UpdateResult StorageBlock::update(
 
   dirty_ = true;
   return retval;
+}
+
+void StorageBlock::updateTupleInPlace(std::unordered_map<attribute_id, TypedValue> *updated_values,
+                                      const tuple_id tup_id) {
+  // Update attribute values in place.
+  for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
+           = updated_values->begin();
+       update_it != updated_values->end();
+       ++update_it) {
+    tuple_store_->setAttributeValueInPlaceTyped(tup_id, update_it->first, update_it->second);
+  }
 }
 
 namespace {

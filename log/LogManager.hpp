@@ -38,15 +38,19 @@ public:
   void logDelete(TransactionId tid,
                  block_id bid,
                  tuple_id tupleId,
-                 Tuple* tuple);
-// Not needed, will be handled by logDelete
-  void logShift(TransactionId tid,
-                block_id bid,
-                tuple_id pre_tuple_id,
-                tuple_id post_tuple_id);
+                 Tuple* tuple);  
 
   // API for flush to disk
   void sendForceRequest();
+
+  // Read private fields
+  std::string getBuffer();
+
+  LSN getCurrentLSN();
+
+  LSN getPrevLSN();
+
+  LSN getTransPrevLSN(TransactionId tid);
 
 private:
   // fetch a log record from queue and write it to buffer
@@ -54,10 +58,6 @@ private:
 
   // Force the current buffer (given length) written to disk on the given file
   void flushToDisk(std::string filename);
-
-  // For debug
-  // return the current header into a readable result
-  void printHeader();
 
   // write an empty log (only header)
   void logEmpty(TransactionId tid);
@@ -67,14 +67,6 @@ private:
   LogTable log_table_;
   std::string buffer_;
   std::mutex mutex_;
-
-  // Friend to unit test
-  FRIEND_TEST(LogManagerTest, BufferSizeTest);
-  FRIEND_TEST(LogManagerTest, LSNTest);
-  FRIEND_TEST(LogManagerTest, HeaderTranslationTest);
-  FRIEND_TEST(LogManagerTest, UpdateTest);
-  FRIEND_TEST(LogManagerTest, CommitAndAbortTest);
-  FRIEND_TEST(LogManagerTest, InsertTest);
 
   DISALLOW_COPY_AND_ASSIGN(LogManager);
 };

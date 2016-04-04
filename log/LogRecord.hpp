@@ -3,7 +3,6 @@
 
 #include "catalog/CatalogTypedefs.hpp"
 #include "expressions/scalar/Scalar.hpp"
-#include "storage/StorageBlock.hpp"
 #include "storage/StorageBlockInfo.hpp"
 #include "transaction/Transaction.hpp"
 #include "types/TypedValue.hpp"
@@ -16,8 +15,6 @@
 #include <memory>
 
 namespace quickstep {
-
-using LSN = std::uint64_t;
 
 class LogRecord {
 

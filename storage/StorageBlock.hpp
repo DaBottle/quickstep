@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "catalog/CatalogTypedefs.hpp"
+#include "log/LogManager.hpp"
 #include "storage/CountedReference.hpp"
 #include "storage/HashTableBase.hpp"
 #include "storage/IndexSubBlock.hpp"
@@ -32,6 +33,7 @@
 #include "storage/StorageBlockLayout.pb.h"
 #include "storage/TupleIdSequence.hpp"
 #include "storage/TupleStorageSubBlock.hpp"
+#include "transaction/Transaction.hpp"
 #include "utility/Macros.hpp"
 #include "utility/PtrVector.hpp"
 
@@ -42,6 +44,7 @@ class AggregationState;
 class CatalogRelationSchema;
 class ColumnVector;
 class InsertDestinationInterface;
+class LogManager;
 class Predicate;
 class Scalar;
 class StorageBlockLayout;
@@ -441,13 +444,32 @@ class StorageBlock : public StorageBlockBase {
    * @param relocation_destination Any tuples that can not be updated in-place
    *        will be removed from this block and inserted into a block provided
    *        by relocation_destination.
+   * @param tid The id of the transaction that performs this method.
+   * @param log_manager A pointer to the log manager for logging
    * @return A structure which indicates whether this block's indices remain
    *         consistent, whether relocation_destination was used, and whether
    *         blocks provided by relocation_destination have consistent indices.
    **/
   UpdateResult update(const std::unordered_map<attribute_id, std::unique_ptr<const Scalar>> &assignments,
                       const Predicate *predicate,
-                      InsertDestinationInterface *relocation_destination);
+                      InsertDestinationInterface *relocation_destination,
+                      TransactionId tid,
+                      LogManager *log_manager);
+
+  /**
+   * @brief Update the given tuple in this StorageBlock.
+   * @warning This method is only used by the recovery manager, for
+   *          a general purpose update, please use the update() method.
+   *
+   * @param updated_values A map of attribute_ids to TypedValues which should be
+   *        evaluated to get the new value for the corresponding attribute.
+   * @param tupleId The id of the tuple needs to be updated.
+   * @return A structure which indicates whether this block's indices remain
+   *         consistent, whether relocation_destination was used, and whether
+   *         blocks provided by relocation_destination have consistent indices.
+   **/
+  void updateTupleInPlace(std::unordered_map<attribute_id, TypedValue> *updated_values,
+                          const tuple_id tup_id);
 
   /**
    * @brief Sort the tuples in this storage block and return a sequence of
