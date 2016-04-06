@@ -44,10 +44,10 @@ class AggregationState;
 class CatalogRelationSchema;
 class ColumnVector;
 class InsertDestinationInterface;
-class LogManager;
 class Predicate;
 class Scalar;
 class StorageBlockLayout;
+class StorageManager;
 class Tuple;
 class TypedValue;
 class ValueAccessor;
@@ -454,12 +454,12 @@ class StorageBlock : public StorageBlockBase {
                       const Predicate *predicate,
                       InsertDestinationInterface *relocation_destination,
                       TransactionId tid,
-                      LogManager *log_manager);
+                      StorageManager *storage_manager);
 
   /**
    * @brief Update the given tuple in this StorageBlock.
-   * @warning This method is only used by the recovery manager, for
-   *          a general purpose update, please use the update() method.
+   * @note This method is only used by the recovery manager, for a general
+   *       purpose update, please use the update() method.
    *
    * @param updated_values A map of attribute_ids to TypedValues which should be
    *        evaluated to get the new value for the corresponding attribute.

@@ -51,6 +51,7 @@ DECLARE_bool(use_hdfs);
 
 class CatalogRelation;
 class CatalogRelationSchema;
+class StorageBlock;
 class StorageBlockLayout;
 
 /** \addtogroup Storage
@@ -311,6 +312,24 @@ class StorageManager {
    **/
   bool blockOrBlobIsLoadedAndDirty(const block_id block);
 
+  /**
+   * @brief Get the log manager for logging issue
+   *
+   * @return A pointer to the log manager
+   **/
+  LogManager* getLogManager() {
+    return log_manager_.get();
+  }
+
+  /**
+   * @brief Check if log is needed right now
+   *
+   * @return True if log is needed, false otherwise
+   **/
+  bool needLog() {
+    return log_status_;
+  }
+
  private:
   struct BlockHandle {
     void *block_memory;
@@ -481,6 +500,20 @@ class StorageManager {
   //       block's lock shard.
   static constexpr std::size_t kLockManagerNumShards = 256;
   ShardedLockManager<block_id, kLockManagerNumShards, SpinSharedMutex<false>> lock_manager_;
+
+  // This log manager is used for doing logging in the block level:
+  //   (1) We have to force the log to disk before the eviction. Since the
+  //       storage manager will handle the block eviction, it should be aware of
+  //       the existence of the log manager.
+  //   (2) For the operation on block modification, we could pass the pointer to
+  //       the log manager from the storage manager, which will make the pointer
+  //       passing more neatly in the work order
+  std::unique_ptr<LogManager> log_manager_;
+  // The log status is a flag of whether we should do the logging now. Normally
+  // it should be on, but under some situation (redo phase, nested operation,
+  // etc.), we may need to turn it off to avoid unbounded logging and duplicate
+  // logging.
+  bool log_status_;
 
   FRIEND_TEST(StorageManagerTest, DifferentNUMANodeBlobTestWithEviction);
   FRIEND_TEST(StorageManagerTest, EvictFromSameShardTest);

@@ -49,7 +49,6 @@ namespace tmb { class MessageBus; }
 namespace quickstep {
 
 class CatalogRelationSchema;
-class StorageManager;
 class ValueAccessor;
 
 namespace merge_run_operator {

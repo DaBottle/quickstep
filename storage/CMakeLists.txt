@@ -237,6 +237,7 @@ target_link_libraries(quickstep_storage_AggregationOperationState
                       quickstep_storage_StorageBlock
                       quickstep_storage_StorageBlockInfo
                       quickstep_storage_StorageManager
+                      quickstep_transaction_Transaction
                       quickstep_types_TypedValue
                       quickstep_types_containers_ColumnVector
                       quickstep_types_containers_ColumnVectorsValueAccessor
@@ -573,12 +574,14 @@ target_link_libraries(quickstep_storage_InsertDestination
                       quickstep_storage_ValueAccessorUtil
                       quickstep_threading_SpinMutex
                       quickstep_threading_ThreadIDBasedMap
+                      quickstep_transaction_Transaction
                       quickstep_types_TypedValue
                       quickstep_types_containers_Tuple
                       quickstep_utility_Macros
                       tmb)
 target_link_libraries(quickstep_storage_InsertDestinationInterface
                       quickstep_catalog_CatalogTypedefs
+                      quickstep_transaction_Transaction
                       quickstep_types_containers_Tuple)
 target_link_libraries(quickstep_storage_InsertDestination_proto
                       quickstep_storage_StorageBlockLayout_proto

@@ -29,6 +29,7 @@
 #include "storage/AggregationOperationState.pb.h"
 #include "storage/HashTableBase.hpp"
 #include "storage/StorageBlockInfo.hpp"
+#include "transaction/Transaction.hpp"
 #include "utility/Macros.hpp"
 
 namespace quickstep {
@@ -37,7 +38,6 @@ class AggregateFunction;
 class CatalogDatabase;
 class CatalogRelationSchema;
 class InsertDestination;
-class StorageManager;
 
 /** \addtogroup Storage
  *  @{

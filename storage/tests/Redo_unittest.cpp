@@ -46,7 +46,6 @@ class RedoTest : public ::testing::Test {
   static const TransactionId tid = 5;
 
   virtual void SetUp() {
-    log_manager_.reset(new LogManager());
     relation_.reset(new CatalogRelation(NULL, "TestRelation", kRelationId));
     storage_manager_.reset(new StorageManager("relation"));
     bus_.Initialize();
@@ -81,8 +80,6 @@ class RedoTest : public ::testing::Test {
     relation_->addAttribute(base_value_attr);
     
     layout_.reset(StorageBlockLayout::GenerateDefaultLayout(*relation_, true));
-    block_id_ = storage_manager_->createBlock(*relation_, layout_.get());
-    relation_->addBlock(block_id_);
   }
 
   // Caller takes ownership of new heap-created Tuple.
@@ -210,7 +207,7 @@ class RedoTest : public ::testing::Test {
                                                     &bus_));
 
     return block->update((*assignments.get()), predicate.get(), relocation.get(),
-                        tid, log_manager_.get());
+                        tid, storage_manager_.get());
   }
 
   // Check if the two blocks are the same except block_id
@@ -218,6 +215,11 @@ class RedoTest : public ::testing::Test {
     MutableBlockReference block1 = storage_manager_->getBlockMutable(id1, *relation_);
     MutableBlockReference block2 = storage_manager_->getBlockMutable(id2, *relation_);
 
+    // Check the number of tuples
+    EXPECT_EQ(block1->getTupleStorageSubBlock().numTuples(),
+              block2->getTupleStorageSubBlock().numTuples());
+
+    // Check each tuple. They should have the same tuples in the same sequence
     std::unique_ptr<ValueAccessor> accessor1(block1->getTupleStorageSubBlock().createValueAccessor());    
     std::unique_ptr<ValueAccessor> accessor2(block2->getTupleStorageSubBlock().createValueAccessor());
     return InvokeOnAnyValueAccessor (
@@ -230,14 +232,22 @@ class RedoTest : public ::testing::Test {
           [&] (auto *accessor2) -> bool {
 
         accessor2->beginIteration();
-        while (!accessor1->next() && !accessor2->next()) {
+        while (accessor1->next() && accessor2->next()) {
           Tuple* tuple1 = accessor1->getTuple();
           Tuple* tuple2 = accessor2->getTuple();
           Tuple::const_iterator it1, it2;
           for (it1 = tuple1->begin(), it2 = tuple2->begin();
               it1 != tuple1->end() && it2 != tuple2->end();
               it1++, it2++) {
-            bool equal = Helper::valueEqual(*it1, *it2);
+            bool equal;
+            // If two null values are of the same type, they are taken as equal
+            if ((*it1).isNull() && (*it2).isNull()) {
+              equal = ((*it1).getTypeID() == (*it2).getTypeID());
+            }
+            else {
+              equal = Helper::valueEqual(*it1, *it2);
+            }
+
             EXPECT_TRUE(equal);
             if (!equal) {
               return false;
@@ -251,8 +261,6 @@ class RedoTest : public ::testing::Test {
   }
   
   std::unique_ptr<StorageManager> storage_manager_;
-  block_id block_id_;
-  std::unique_ptr<LogManager> log_manager_;
   std::unique_ptr<CatalogRelation> relation_;
   std::unique_ptr<StorageBlockLayout> layout_;
   MessageBusImpl bus_;
@@ -263,29 +271,33 @@ class RedoTest : public ::testing::Test {
 TEST_F(RedoTest, InPlaceUpdateTest) {
   StorageBlock::UpdateResult result;
   // Rebuild the block in a new block in order to compare with the old one
+  block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(old_block_id);
   block_id new_block_id = storage_manager_->createBlock(*relation_, layout_.get());
-  ASSERT_EQ(block_id_ + 1, new_block_id);
+  relation_->addBlock(new_block_id);
+  ASSERT_EQ(old_block_id + 1, new_block_id);
 
   // Insert tuples to both blocks
-  insertSampleTuples(block_id_, kTupleNumber);
+  insertSampleTuples(old_block_id, kTupleNumber);
   insertSampleTuples(new_block_id, kTupleNumber);
 
   // Update tuples in the original block
   // Update a tuple without NULL value involved
-  result = update(block_id_, 1, 5);
+  result = update(old_block_id, 1, 5);
   EXPECT_TRUE(result.indices_consistent);
   EXPECT_FALSE(result.relocation_destination_used);
   // Update fields to NULL
-  result = update(block_id_, 3, 0);
+  result = update(old_block_id, 3, 0);
   EXPECT_TRUE(result.indices_consistent);
   EXPECT_FALSE(result.relocation_destination_used);
   // Update fields from Null
-  result = update(block_id_, 0, 1);
+  result = update(old_block_id, 0, 1);
   EXPECT_TRUE(result.indices_consistent);
   EXPECT_FALSE(result.relocation_destination_used);
 
-  // Rebuild the block in block_id_+1 from log
-  std::string buffer(log_manager_->getBuffer());
+  // Rebuild the block in old_block_id+1 from log
+  LogManager* log_manager = storage_manager_->getLogManager();
+  std::string buffer(log_manager->getBuffer());
   while (buffer.length() > 0) {
     int length, index, payload_length;
     std::string header, payload;
@@ -307,7 +319,7 @@ TEST_F(RedoTest, InPlaceUpdateTest) {
     index = 0;
     bid = Helper::strToId(payload.substr(index, sizeof(block_id)));
     index += sizeof(block_id);
-    ASSERT_EQ(block_id_, bid);
+    ASSERT_EQ(old_block_id, bid);
     new_block = storage_manager_->getBlockMutable(bid + 1, *relation_);
 
     // Redo the update
@@ -327,10 +339,12 @@ TEST_F(RedoTest, InPlaceUpdateTest) {
     }
     
     new_block->updateTupleInPlace(updated_values.get(), tup_id);
-
-    EXPECT_TRUE(areTwoBlocksSame(block_id_, new_block_id));
-
   }
+  
+  EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
+  // Clean up
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+  storage_manager_->deleteBlockOrBlobFile(old_block_id);
 }
 
 } // namespace quickstep

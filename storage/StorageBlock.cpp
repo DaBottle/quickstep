@@ -45,6 +45,7 @@
 #include "storage/StorageBlockLayout.pb.h"
 #include "storage/StorageConfig.h"
 #include "storage/StorageErrors.hpp"
+#include "storage/StorageManager.hpp"
 #include "storage/SubBlocksReference.hpp"
 #include "storage/TupleIdSequence.hpp"
 #include "storage/TupleStorageSubBlock.hpp"
@@ -436,7 +437,7 @@ StorageBlock::UpdateResult StorageBlock::update(
     const Predicate *predicate,
     InsertDestinationInterface *relocation_destination,
     TransactionId tid,
-    LogManager *log_manager) {
+    StorageManager *storage_manager) {
   if (relation_.getID() != relocation_destination->getRelation().getID()) {
     FATAL_ERROR("StorageBlock::update() called with a relocation_destination "
                 "that does not belong to the same relation.");
@@ -445,6 +446,7 @@ StorageBlock::UpdateResult StorageBlock::update(
   UpdateResult retval;
   // TODO(chasseur): Be smarter and only update indexes that need to be updated.
   std::unique_ptr<TupleIdSequence> matches(getMatchesForPredicate(predicate));
+  LogManager *log_manager = storage_manager->getLogManager();
 
   // If nothing matches the predicate, return immediately.
   if (matches->empty()) {
@@ -488,20 +490,22 @@ StorageBlock::UpdateResult StorageBlock::update(
     // reinserting.
     if (!relocate_all
         && tuple_store_->canSetAttributeValuesInPlaceTyped(*match_it, *updated_values)) {
-      // Get the old values
-      std::unique_ptr<std::unordered_map<attribute_id, TypedValue>>
-          old_values(new std::unordered_map<attribute_id, TypedValue>());
-      for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
-               = updated_values->begin();
-           update_it != updated_values->end();
-           ++update_it) {
-        (*old_values)[update_it->first] = 
-           tuple_store_->getAttributeValueTyped(*match_it, update_it->first);
-      }
+      if (storage_manager->needLog()) {
+        // Get the old values
+        std::unique_ptr<std::unordered_map<attribute_id, TypedValue>>
+            old_values(new std::unordered_map<attribute_id, TypedValue>());
+        for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it
+                 = updated_values->begin();
+             update_it != updated_values->end();
+             ++update_it) {
+          (*old_values)[update_it->first] = 
+             tuple_store_->getAttributeValueTyped(*match_it, update_it->first);
+        }
 
-      // Write update log
-      log_manager->logUpdate(tid, id_, *match_it, old_values.get(),
-                            updated_values.get());
+        // Write update log
+        log_manager->logUpdate(tid, id_, *match_it, old_values.get(),
+                              updated_values.get());
+      }
       
       // Update attribute values in place.
       for (std::unordered_map<attribute_id, TypedValue>::const_iterator update_it

@@ -139,6 +139,8 @@ StorageManager::StorageManager(
 #endif
 
   block_index_ = BlockIdUtil::GetBlockId(block_domain, file_manager_->getMaxUsedBlockCounter(block_domain));
+  log_manager_.reset(new LogManager());
+  log_status_ = true;
 }
 
 StorageManager::~StorageManager() {
