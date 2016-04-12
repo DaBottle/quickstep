@@ -71,6 +71,8 @@ class InsertDestinationInterface {
    *        InsertDestination.
    *
    * @param tuple The tuple to insert.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    * @exception TupleTooLargeForBlock Even though a block was initially empty,
    *            the tuple was too large to insert. Only thrown if a block is
    *            initially empty, otherwise failure to insert simply causes
@@ -86,12 +88,16 @@ class InsertDestinationInterface {
    *        blocks until they are full or all insertions are complete).
    *
    * @param tuple The tuple to insert.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    * @exception TupleTooLargeForBlock Even though a block was initially empty,
    *            the tuple was too large to insert. Only thrown if a block is
    *            initially empty, otherwise failure to insert simply causes
    *            another block to be used.
    **/
-  virtual void insertTupleInBatch(const Tuple &tuple) = 0;
+  virtual void insertTupleInBatch(const Tuple &tuple,
+                                  const TransactionId tid,
+                                  StorageManager *storage_manager) = 0;
 
   /**
    * @brief Bulk-insert tuples from a ValueAccessor into blocks managed by this
@@ -132,7 +138,9 @@ class InsertDestinationInterface {
    * @param end One-past-the-end of the range of Tuples to insert.
    **/
   virtual void insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
-                                      std::vector<Tuple>::const_iterator end) = 0;
+                                      std::vector<Tuple>::const_iterator end,
+                                      const TransactionId tid,
+                                      StorageManager *storage_manager) = 0;
 };
 
 /** @} */

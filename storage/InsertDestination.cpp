@@ -148,11 +148,13 @@ void InsertDestination::insertTuple(const Tuple &tuple,
   returnBlock(std::move(output_block), false);
 }
 
-void InsertDestination::insertTupleInBatch(const Tuple &tuple) {
+void InsertDestination::insertTupleInBatch(const Tuple &tuple,
+                                          const TransactionId tid,
+                                          StorageManager *storage_manager) {
   MutableBlockReference output_block = getBlockForInsertion();
 
   try {
-    while (!output_block->insertTupleInBatch(tuple)) {
+    while (!output_block->insertTupleInBatch(tuple, tid, storage_manager)) {
       returnBlock(std::move(output_block), true);
       output_block = getBlockForInsertion();
     }
@@ -212,7 +214,9 @@ void InsertDestination::bulkInsertTuplesWithRemappedAttributes(
 }
 
 void InsertDestination::insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
-                                               std::vector<Tuple>::const_iterator end) {
+                                               std::vector<Tuple>::const_iterator end,
+                                               const TransactionId tid,
+                                               StorageManager *storage_manager) {
   if (begin == end) {
     return;
   }
@@ -220,7 +224,7 @@ void InsertDestination::insertTuplesFromVector(std::vector<Tuple>::const_iterato
   MutableBlockReference dest_block = getBlockForInsertion();
   for (; begin != end; ++begin) {
     // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
-    while (!dest_block->insertTupleInBatch(*begin)) {
+    while (!dest_block->insertTupleInBatch(*begin, tid, storage_manager)) {
       returnBlock(std::move(dest_block), true);
       dest_block = getBlockForInsertion();
     }
@@ -418,7 +422,9 @@ void PartitionAwareInsertDestination::insertTuple(const Tuple &tuple,
   returnBlockInPartition(std::move(output_block), false, part_id);
 }
 
-void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple) {
+void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple,
+                                                        const TransactionId tid,
+                                                        StorageManager *storage_manager) {
   const PartitionScheme &part_scheme = relation_->getPartitionScheme();
   partition_id part_id = part_scheme.getPartitionId(
       tuple.getAttributeValue(part_scheme.getPartitionAttributeId()));
@@ -426,7 +432,7 @@ void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple) {
   MutableBlockReference output_block = getBlockForInsertionInPartition(part_id);
 
   try {
-    while (!output_block->insertTupleInBatch(tuple)) {
+    while (!output_block->insertTupleInBatch(tuple, tid, storage_manager)) {
       returnBlockInPartition(std::move(output_block), true, part_id);
       output_block = getBlockForInsertionInPartition(part_id);
     }
@@ -544,7 +550,9 @@ void PartitionAwareInsertDestination::bulkInsertTuplesWithRemappedAttributes(
 }
 
 void PartitionAwareInsertDestination::insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
-                                                             std::vector<Tuple>::const_iterator end) {
+                                                             std::vector<Tuple>::const_iterator end,
+                                                             const TransactionId tid,
+                                                             StorageManager *storage_manager) {
   if (begin == end) {
     return;
   }
@@ -554,7 +562,7 @@ void PartitionAwareInsertDestination::insertTuplesFromVector(std::vector<Tuple>:
         part_scheme.getPartitionId(begin->getAttributeValue(part_scheme.getPartitionAttributeId()));
     MutableBlockReference dest_block = getBlockForInsertionInPartition(part_id);
     // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
-    while (!dest_block->insertTupleInBatch(*begin)) {
+    while (!dest_block->insertTupleInBatch(*begin, tid, storage_manager)) {
       returnBlockInPartition(std::move(dest_block), true, part_id);
       dest_block = getBlockForInsertionInPartition(part_id);
     }

@@ -68,6 +68,7 @@ class TestTuple {
 class StorageBlockSortTest : public ::testing::Test {
  public:
   static const int kNumTuples;
+  static const int kTid = 4;
 
  protected:
   static const char kStoragePath[];
@@ -104,7 +105,7 @@ class StorageBlockSortTest : public ::testing::Test {
     tuple_mapping_.reserve(kNumTuples);
     for (size_t i = 0; i < tuple_mapping_.size(); ++i) {
       std::unique_ptr<Tuple> tuple(createTuple(tuple_mapping_[i]));
-      block->insertTupleInBatch(*tuple);
+      block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
     }
 
     block->rebuild();

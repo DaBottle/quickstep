@@ -35,6 +35,14 @@ namespace quickstep {
     writeToBuffer(record);
   }
 
+  void LogManager::logInsertInBatch(const TransactionId tid,
+                                    const block_id bid,
+                                    const tuple_id tupleId,
+                                    const Tuple* tuple) {
+    InsertDeleteLogRecord* record = new InsertDeleteLogRecord(tid, LogRecord::LogRecordType::kINSERT_BATCH, bid, tupleId, tuple);
+    writeToBuffer(record);
+  }
+
   void LogManager::logDelete(const TransactionId tid,
                              const block_id bid,
                              const tuple_id tupleId,

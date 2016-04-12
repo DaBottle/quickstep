@@ -207,6 +207,8 @@ class StorageBlock : public StorageBlockBase {
    * @brief Insert a single tuple into this block.
    *
    * @param tuple The tuple to insert.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager
    * @return true if the tuple was successfully inserted, false if insertion
    *         failed (e.g. because of not enough space).
    * @exception TupleTooLargeForBlock Even though this block was initially
@@ -231,6 +233,8 @@ class StorageBlock : public StorageBlockBase {
    *          is called.
    *
    * @param tuple The tuple to insert.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    * @return true if the tuple was successfully inserted, false if insertion
    *         failed (e.g. because of not enough space).
    * @exception TupleTooLargeForBlock Even though this block was initially
@@ -238,7 +242,9 @@ class StorageBlock : public StorageBlockBase {
    *            is initially empty, otherwise failure to insert simply returns
    *            false.
    **/
-  bool insertTupleInBatch(const Tuple &tuple);
+  bool insertTupleInBatch(const Tuple &tuple,
+                          const TransactionId tid,
+                          StorageManager *storage_manager);
 
   /**
    * @brief Insert as many tuples as possible from a ValueAccessor (all of the
@@ -447,7 +453,7 @@ class StorageBlock : public StorageBlockBase {
    *        will be removed from this block and inserted into a block provided
    *        by relocation_destination.
    * @param tid The id of the transaction that performs this method.
-   * @param log_manager A pointer to the log manager for logging
+   * @param storage_manager A pointer to the storage manager.
    * @return A structure which indicates whether this block's indices remain
    *         consistent, whether relocation_destination was used, and whether
    *         blocks provided by relocation_destination have consistent indices.

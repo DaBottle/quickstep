@@ -35,6 +35,11 @@ public:
                  const tuple_id tupleId,
                  const Tuple* tuple);
 
+  void logInsertInBatch(const TransactionId tid,
+                        const block_id bid,
+                        const tuple_id tupleId,
+                        const Tuple* tuple);
+
   void logDelete(const TransactionId tid,
                  const block_id bid,
                  const tuple_id tupleId,

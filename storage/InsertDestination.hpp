@@ -134,7 +134,9 @@ class InsertDestination : public InsertDestinationInterface {
                   const TransactionId tid,
                   StorageManager *storage_manager) override;
 
-  void insertTupleInBatch(const Tuple &tuple) override;
+  void insertTupleInBatch(const Tuple &tuple,
+                          const TransactionId tid,
+                          StorageManager *storage_manager) override;
 
   void bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full = false) override;
 
@@ -144,7 +146,9 @@ class InsertDestination : public InsertDestinationInterface {
       bool always_mark_full = false) override;
 
   void insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
-                              std::vector<Tuple>::const_iterator end) override;
+                              std::vector<Tuple>::const_iterator end,
+                              const TransactionId tid,
+                              StorageManager *storage_manager) override;
 
   /**
    * @brief Get the set of blocks that were used by clients of this
@@ -415,7 +419,9 @@ class PartitionAwareInsertDestination : public InsertDestination {
                   const TransactionId tid,
                   StorageManager *storage_manager) override;
 
-  void insertTupleInBatch(const Tuple &tuple) override;
+  void insertTupleInBatch(const Tuple &tuple,
+                          const TransactionId tid,
+                          StorageManager *storage_manager) override;
 
   void bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full = false) override;
 
@@ -425,7 +431,9 @@ class PartitionAwareInsertDestination : public InsertDestination {
       bool always_mark_full = false) override;
 
   void insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
-                              std::vector<Tuple>::const_iterator end) override;
+                              std::vector<Tuple>::const_iterator end,
+                              const TransactionId tid,
+                              StorageManager *storage_manager) override;
 
  protected:
   MutableBlockReference getBlockForInsertion() override;

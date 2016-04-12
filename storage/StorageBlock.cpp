@@ -239,8 +239,14 @@ bool StorageBlock::insertTuple(const Tuple &tuple,
   }
 }
 
-bool StorageBlock::insertTupleInBatch(const Tuple &tuple) {
+bool StorageBlock::insertTupleInBatch(const Tuple &tuple,
+                                      const TransactionId tid,
+                                      StorageManager *storage_manager) {
   if (tuple_store_->insertTupleInBatch(tuple)) {
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      log_manager->logInsertInBatch(tid, id_, tuple_store_->numTuples() - 1, &tuple);
+    }
     invalidateAllIndexes();
     dirty_ = true;
     return true;
@@ -256,6 +262,20 @@ bool StorageBlock::insertTupleInBatch(const Tuple &tuple) {
 tuple_id StorageBlock::bulkInsertTuples(ValueAccessor *accessor) {
   const tuple_id num_inserted = tuple_store_->bulkInsertTuples(accessor);
   if (num_inserted != 0) {
+    /*
+    // Write Log
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      InvokeOnAnyValueAccessor (accessor.get(), [&] (auto *accessor) -> void {
+        accessor->beginIteration();
+        // Only write log for the inserted tuples
+        for (int i = 0; i < num_inserted; ++i) {
+          DEBUG_ASSERT(accessor->next());
+
+          Tuple *tuple = accessor->getTuple();
+        }
+      });
+    }*/
     invalidateAllIndexes();
     dirty_ = true;
   } else if (tuple_store_->isEmpty()) {
@@ -559,7 +579,9 @@ StorageBlock::UpdateResult StorageBlock::update(
       // partitioning.
       retval.relocation_destination_used = true;
       relocation_destination->insertTuplesFromVector(relocation_buffer.begin(),
-                                                     relocation_buffer.end());
+                                                     relocation_buffer.end(),
+                                                     tid,
+                                                     storage_manager);
     } else {
       // Reinsert into this block until space is exhausted.
       for (std::vector<Tuple>::const_iterator copy_it = relocation_buffer.begin();
@@ -571,7 +593,10 @@ StorageBlock::UpdateResult StorageBlock::update(
             rebuild_all = true;
           } else {
             retval.relocation_destination_used = true;
-            relocation_destination->insertTuplesFromVector(copy_it, relocation_buffer.end());
+            relocation_destination->insertTuplesFromVector(copy_it,
+                                                           relocation_buffer.end(),
+                                                           tid,
+                                                           storage_manager);
             break;
           }
         } else {
@@ -580,7 +605,10 @@ StorageBlock::UpdateResult StorageBlock::update(
           if (reinsert_result.inserted_id < 0) {
             DCHECK(!reinsert_result.ids_mutated);
             retval.relocation_destination_used = true;
-            relocation_destination->insertTuplesFromVector(copy_it, relocation_buffer.end());
+            relocation_destination->insertTuplesFromVector(copy_it,
+                                                           relocation_buffer.end(),
+                                                           tid,
+                                                           storage_manager);
             break;
           }
 

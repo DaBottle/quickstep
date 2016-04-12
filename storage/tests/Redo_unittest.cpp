@@ -146,6 +146,15 @@ class RedoTest : public ::testing::Test {
     }
   }
 
+  void insertSampleTuplesInBatch(block_id bid, int num) {
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+
+    for (int i = 0; i < num; ++i) {
+      Tuple* tuple = createTuple(i);
+      block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
+    }
+  }
+
   // update the base tuple to a series of new values
   // base_value will remain unchanged
   // new_value of 0 means NULL for all non-base fields
@@ -267,7 +276,10 @@ class RedoTest : public ::testing::Test {
         redoUpdate(bid, log.substr(Macros::kHEADER_LENGTH));
         break;
       case LogRecord::LogRecordType::kINSERT:
-        redoInsert(bid, log.substr(Macros::kHEADER_LENGTH));
+        redoInsert(bid, log.substr(Macros::kHEADER_LENGTH), false);
+        break;
+      case LogRecord::LogRecordType::kINSERT_BATCH:
+        redoInsert(bid, log.substr(Macros::kHEADER_LENGTH), true);
         break;
       default:
         return;
@@ -303,7 +315,7 @@ class RedoTest : public ::testing::Test {
     block->updateTupleInPlace(updated_values.get(), tup_id);
   }
 
-  void redoInsert(block_id bid, std::string payload) {
+  void redoInsert(block_id bid, std::string payload, bool batch) {
     MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
     std::vector<TypedValue> values;
     int index = 0;
@@ -318,7 +330,12 @@ class RedoTest : public ::testing::Test {
     }
     EXPECT_EQ(index, length);
     Tuple *tuple = new Tuple(std::move(values));
-    block->insertTuple(*tuple, kTid, storage_manager_.get());
+    if (!batch) {
+      block->insertTuple(*tuple, kTid, storage_manager_.get());
+    }
+    else {
+      block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
+    }
   }
   
   std::unique_ptr<StorageManager> storage_manager_;
@@ -393,6 +410,7 @@ TEST_F(RedoTest, InsertTest) {
   ASSERT_EQ(old_block_id + 1, new_block_id);
 
   insertSampleTuples(old_block_id, kTupleNumber);
+  insertSampleTuplesInBatch(old_block_id, kTupleNumber + 1);
 
   // Rebuild the block from log
   storage_manager_->setLogStatus(false);

@@ -37,7 +37,8 @@ public:
     kABORT = 4,
     kCHECKPOINT = 5,
     kINSERT = 6,
-    kDELETE = 7,
+    kINSERT_BATCH = 7,
+    kDELETE = 8,
   };
 
   /**
