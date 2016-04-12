@@ -243,9 +243,11 @@ void AggregationOperationState::aggregateBlock(const block_id input_block) {
   }
 }
 
-void AggregationOperationState::finalizeAggregate(InsertDestination *output_destination) const {
+void AggregationOperationState::finalizeAggregate(InsertDestination *output_destination,
+                                                  const TransactionId tid,
+                                                  StorageManager *storage_manager) const {
   if (group_by_list_.empty()) {
-    finalizeSingleState(output_destination);
+    finalizeSingleState(output_destination, tid, storage_manager);
   } else {
     finalizeHashTable(output_destination);
   }
@@ -326,7 +328,9 @@ void AggregationOperationState::aggregateBlockHashTable(const block_id input_blo
   }
 }
 
-void AggregationOperationState::finalizeSingleState(InsertDestination *output_destination) const {
+void AggregationOperationState::finalizeSingleState(InsertDestination *output_destination,
+                                                    const TransactionId tid,
+                                                    StorageManager *storage_manager) const {
   // Simply build up a Tuple from the finalized values for each aggregate and
   // insert it in '*output_destination'.
   std::vector<TypedValue> attribute_values;
@@ -337,7 +341,7 @@ void AggregationOperationState::finalizeSingleState(InsertDestination *output_de
     attribute_values.emplace_back(handles_[agg_idx]->finalize(*single_states_[agg_idx]));
   }
 
-  output_destination->insertTuple(Tuple(std::move(attribute_values)));
+  output_destination->insertTuple(Tuple(std::move(attribute_values)), tid, storage_manager);
 }
 
 void AggregationOperationState::finalizeHashTable(InsertDestination *output_destination) const {

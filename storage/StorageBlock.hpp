@@ -214,7 +214,9 @@ class StorageBlock : public StorageBlockBase {
    *            is initially empty, otherwise failure to insert simply returns
    *            false.
    **/
-  bool insertTuple(const Tuple &tuple);
+  bool insertTuple(const Tuple &tuple,
+                  const TransactionId tid,
+                  StorageManager *storage_manager);
 
   /**
    * @brief Insert a single tuple into this block as part of a batch.

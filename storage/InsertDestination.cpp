@@ -130,11 +130,13 @@ bool InsertDestination::ProtoIsValid(const serialization::InsertDestination &pro
   return true;
 }
 
-void InsertDestination::insertTuple(const Tuple &tuple) {
+void InsertDestination::insertTuple(const Tuple &tuple,
+                                    const TransactionId tid,
+                                    StorageManager *storage_manager) {
   MutableBlockReference output_block = getBlockForInsertion();
 
   try {
-    while (!output_block->insertTuple(tuple)) {
+    while (!output_block->insertTuple(tuple, tid, storage_manager)) {
       returnBlock(std::move(output_block), true);
       output_block = getBlockForInsertion();
     }
@@ -393,7 +395,9 @@ attribute_id PartitionAwareInsertDestination::getPartitioningAttribute() const {
   return relation_->getPartitionScheme().getPartitionAttributeId();
 }
 
-void PartitionAwareInsertDestination::insertTuple(const Tuple &tuple) {
+void PartitionAwareInsertDestination::insertTuple(const Tuple &tuple,
+                                                  const TransactionId tid,
+                                                  StorageManager *storage_manager) {
   const PartitionScheme &part_scheme = relation_->getPartitionScheme();
   const partition_id part_id =
       part_scheme.getPartitionId(tuple.getAttributeValue(part_scheme.getPartitionAttributeId()));
@@ -401,7 +405,7 @@ void PartitionAwareInsertDestination::insertTuple(const Tuple &tuple) {
   MutableBlockReference output_block = getBlockForInsertionInPartition(part_id);
 
   try {
-    while (!output_block->insertTuple(tuple)) {
+    while (!output_block->insertTuple(tuple, tid, storage_manager)) {
       returnBlockInPartition(std::move(output_block), true, part_id);
       output_block = getBlockForInsertionInPartition(part_id);
     }

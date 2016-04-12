@@ -18,27 +18,27 @@ namespace quickstep {
     , mutex_()  {}
 
   // Logging API
-  void LogManager::logUpdate(TransactionId tid,
-                             block_id bid,
-                             tuple_id tupleId,
-                             std::unordered_map<attribute_id, TypedValue>* old_value,
-                             std::unordered_map<attribute_id, TypedValue>* updated_value) {
+  void LogManager::logUpdate(const TransactionId tid,
+                             const block_id bid,
+                             const tuple_id tupleId,
+                             const std::unordered_map<attribute_id, TypedValue>* old_value,
+                             const std::unordered_map<attribute_id, TypedValue>* updated_value) {
     UpdateLogRecord* record = new UpdateLogRecord(tid, bid, tupleId, old_value, updated_value);
     writeToBuffer(record);
   }
 
-  void LogManager::logInsert(TransactionId tid,
-                             block_id bid,
-                             tuple_id tupleId,
-                             Tuple* tuple) {
+  void LogManager::logInsert(const TransactionId tid,
+                             const block_id bid,
+                             const tuple_id tupleId,
+                             const Tuple* tuple) {
     InsertDeleteLogRecord* record = new InsertDeleteLogRecord(tid, LogRecord::LogRecordType::kINSERT, bid, tupleId, tuple);
     writeToBuffer(record);
   }
 
-  void LogManager::logDelete(TransactionId tid,
-                             block_id bid,
-                             tuple_id tupleId,
-                             Tuple* tuple) {
+  void LogManager::logDelete(const TransactionId tid,
+                             const block_id bid,
+                             const tuple_id tupleId,
+                             const Tuple* tuple) {
     InsertDeleteLogRecord* record = new InsertDeleteLogRecord(tid, LogRecord::LogRecordType::kDELETE, bid, tupleId, tuple);
     writeToBuffer(record);
   }
@@ -67,7 +67,7 @@ namespace quickstep {
   }    
 
   // Write log to buffer
-  void LogManager::writeToBuffer(LogRecord* record) {
+  void LogManager::writeToBuffer(const LogRecord* record) {
     std::string payload = record->payload();
     int length = payload.length() + Macros::kHEADER_LENGTH;
 

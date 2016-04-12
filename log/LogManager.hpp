@@ -24,21 +24,24 @@ public:
 
   // APIs for write a log
   // Log in-place update (if not in-place, will be logged as delete/re-insert)
-  void logUpdate(TransactionId tid,
-                 block_id bid,
-                 tuple_id tupldId,
-                 std::unordered_map<attribute_id, TypedValue>* old_value,
-                 std::unordered_map<attribute_id, TypedValue>* updated_value);
+  void logUpdate(const TransactionId tid,
+                 const block_id bid,
+                 const tuple_id tupldId,
+                 const std::unordered_map<attribute_id, TypedValue>* old_value,
+                 const std::unordered_map<attribute_id, TypedValue>* updated_value);
 
-  void logInsert(TransactionId tid,
-                 block_id bid,
-                 tuple_id tupleId,
-                 Tuple* tuple);
+  void logInsert(const TransactionId tid,
+                 const block_id bid,
+                 const tuple_id tupleId,
+                 const Tuple* tuple);
 
-  void logDelete(TransactionId tid,
-                 block_id bid,
-                 tuple_id tupleId,
-                 Tuple* tuple);  
+  void logDelete(const TransactionId tid,
+                 const block_id bid,
+                 const tuple_id tupleId,
+                 const Tuple* tuple);
+
+  // write an empty log (only header)
+  void logEmpty(TransactionId tid);
 
   // API for flush to disk
   void sendForceRequest();
@@ -54,13 +57,10 @@ public:
 
 private:
   // fetch a log record from queue and write it to buffer
-  void writeToBuffer(LogRecord* record);
+  void writeToBuffer(const LogRecord* record);
 
   // Force the current buffer (given length) written to disk on the given file
   void flushToDisk(std::string filename);
-
-  // write an empty log (only header)
-  void logEmpty(TransactionId tid);
 
   LSN current_LSN_; // 32 bits for file index, 32 bits for offsets in a log file
   LSN prev_LSN_;

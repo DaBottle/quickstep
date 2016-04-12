@@ -330,6 +330,15 @@ class StorageManager {
     return log_status_;
   }
 
+  /**
+   * @brief Set the log status
+   *
+   * @param status The expected log status after this method
+   **/
+  void setLogStatus(bool status) {
+    log_status_ = status;
+  }
+
  private:
   struct BlockHandle {
     void *block_memory;

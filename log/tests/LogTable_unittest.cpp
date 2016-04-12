@@ -8,17 +8,22 @@ namespace quickstep {
 // Test the basic function of log table (check and update)
 TEST(LogTableTest, EntryTest) {
   LogTable log_table;
-  EXPECT_EQ(log_table.getPrevLSN((TransactionId) 1), (LSN) 0);
+  LSN empty = 0;
+  TransactionId tid = 1;
+  
+  EXPECT_EQ(empty, log_table.getPrevLSN(tid));
   // Add one entry
-  log_table.update((TransactionId) 1, (LSN) 1);
-  EXPECT_EQ(log_table.getPrevLSN((TransactionId) 1), (LSN) 1);
-  EXPECT_EQ(log_table.getPrevLSN((TransactionId) 2), (LSN) 0);
+  LSN input = 1;
+  log_table.update(tid, input);
+  EXPECT_EQ(input, log_table.getPrevLSN(tid));
+  EXPECT_EQ(empty, log_table.getPrevLSN(tid + 1));
   // Update the entry
-  log_table.update((TransactionId) 1, (LSN) 5);
-  EXPECT_EQ(log_table.getPrevLSN((TransactionId) 1), (LSN) 5);
+  input = 3;
+  log_table.update(tid, input);
+  EXPECT_EQ(input, log_table.getPrevLSN(tid));
   // Remove the entry
-  log_table.remove((TransactionId) 1);
-  EXPECT_EQ(log_table.getPrevLSN((TransactionId) 1), (LSN) 0);
+  log_table.remove(tid);
+  EXPECT_EQ(empty, log_table.getPrevLSN(tid));
 }
 
 }

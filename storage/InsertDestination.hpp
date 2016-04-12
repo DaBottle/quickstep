@@ -130,7 +130,9 @@ class InsertDestination : public InsertDestinationInterface {
     return -1;
   }
 
-  void insertTuple(const Tuple &tuple) override;
+  void insertTuple(const Tuple &tuple,
+                  const TransactionId tid,
+                  StorageManager *storage_manager) override;
 
   void insertTupleInBatch(const Tuple &tuple) override;
 
@@ -409,7 +411,9 @@ class PartitionAwareInsertDestination : public InsertDestination {
 
   attribute_id getPartitioningAttribute() const override;
 
-  void insertTuple(const Tuple &tuple) override;
+  void insertTuple(const Tuple &tuple,
+                  const TransactionId tid,
+                  StorageManager *storage_manager) override;
 
   void insertTupleInBatch(const Tuple &tuple) override;
 

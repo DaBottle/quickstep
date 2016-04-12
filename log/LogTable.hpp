@@ -9,21 +9,48 @@ namespace quickstep {
 
 typedef std::uint64_t LSN;
 
+/** \addtogroup Log
+ *  @{
+ */
+
+/**
+ * @brief A hash table to store the previous LSN for each running transaction.
+ **/
 class LogTable {
 public:
-  // Constructor
+  /**
+   * @brief Constuctor.
+   **/ 
   LogTable();
 
-  // Return the previous LSN of given transaction, 0 if not exists
-  LSN getPrevLSN(TransactionId tid);
+  
+  /**
+   * @brief Get the previous LSN for the given transaction.
+   *
+   * @param tid The id of the transaction to look up.
+   *
+   * @return The previous LSN of the given transaction, 0 if the transaction
+   *         has no previous LSN.
+   **/ 
+  LSN getPrevLSN(const TransactionId tid);
 
-  void update(TransactionId tid, LSN prev_LSN);
+  /**
+   * @brief Update entry of the given transaction to a new value.
+   *
+   * @param tid The id of the transaction to update.
+   * @param prev_LSN The new previous LSN for the given transaction.
+   **/
+  void update(const TransactionId tid, const LSN prev_LSN);
 
-  void remove(TransactionId tid);
+  /**
+   * @brief Remove the given transaction from the table
+   *
+   * @param tid The id of the transaction to remove
+   **/
+  void remove(const TransactionId tid);
 
 private:
   std::unordered_map<TransactionId, LSN> log_table_;
-  FRIEND_TEST(LotTableTest, EntryTest);
 
   DISALLOW_COPY_AND_ASSIGN(LogTable);
 };

@@ -20,11 +20,13 @@
 #include <vector>
 
 #include "catalog/CatalogTypedefs.hpp"
+#include "transaction/Transaction.hpp"
 #include "types/containers/Tuple.hpp"
 
 namespace quickstep {
 
 class CatalogRelationSchema;
+class StorageManager;
 class ValueAccessor;
 
 /** \addtogroup Storage
@@ -74,7 +76,9 @@ class InsertDestinationInterface {
    *            initially empty, otherwise failure to insert simply causes
    *            another block to be used.
    **/
-  virtual void insertTuple(const Tuple &tuple) = 0;
+  virtual void insertTuple(const Tuple &tuple,
+                          const TransactionId tid,
+                          StorageManager *storage_manager) = 0;
 
   /**
    * @brief Insert a single tuple into a block managed by this

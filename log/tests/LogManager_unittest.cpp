@@ -42,7 +42,7 @@ TEST(LogManagerTest, BufferSizeTest) {
   EXPECT_EQ(Macros::kHEADER_LENGTH + 0, (int)log_manager.getBuffer().length());
 
   // Force to disk
-  log_manager.flushToDisk("LOG");
+  log_manager.sendForceRequest();
   EXPECT_EQ(0, (int)log_manager.getBuffer().length());
 }
 
@@ -162,7 +162,7 @@ TEST(LogManagerTest, InsertDeleteTest) {
 
   log_manager.logDelete(tid, bid, tupleId, &tuple);
   // Check payload
-  payload = log_manager.buffer_;
+  payload = log_manager.getBuffer();
   index += Macros::kHEADER_LENGTH;
   // block_id and tuple_id  
   EXPECT_EQ(bid, Helper::strToId(payload.substr(index, sizeof(bid))));

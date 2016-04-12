@@ -38,6 +38,7 @@ class AggregateFunction;
 class CatalogDatabase;
 class CatalogRelationSchema;
 class InsertDestination;
+class StorageManager;
 
 /** \addtogroup Storage
  *  @{
@@ -153,7 +154,9 @@ class AggregationOperationState {
    * @param output_destination An InsertDestination where the finalized output
    *        tuple(s) from this aggregate are to be written.
    **/
-  void finalizeAggregate(InsertDestination *output_destination) const;
+  void finalizeAggregate(InsertDestination *output_destination,
+                        const TransactionId tid,
+                        StorageManager *storage_manager) const;
 
  private:
   // Merge locally (per storage block) aggregated states with global aggregation
@@ -164,7 +167,9 @@ class AggregationOperationState {
   void aggregateBlockSingleState(const block_id input_block);
   void aggregateBlockHashTable(const block_id input_block);
 
-  void finalizeSingleState(InsertDestination *output_destination) const;
+  void finalizeSingleState(InsertDestination *output_destination,
+                          const TransactionId tid,
+                          StorageManager *storage_manager) const;
   void finalizeHashTable(InsertDestination *output_destination) const;
 
   // Common state for all aggregates in this operation: the input relation, the

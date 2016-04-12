@@ -29,6 +29,7 @@
 #include "expressions/aggregation/AggregationHandle.hpp"
 #include "expressions/predicate/Predicate.hpp"
 #include "expressions/scalar/Scalar.hpp"
+#include "log/LogManager.hpp"
 #include "storage/BasicColumnStoreTupleStorageSubBlock.hpp"
 #include "storage/CSBTreeIndexSubBlock.hpp"
 #include "storage/CompressedColumnStoreTupleStorageSubBlock.hpp"
@@ -187,7 +188,9 @@ StorageBlock::StorageBlock(const CatalogRelationSchema &relation,
   }
 }
 
-bool StorageBlock::insertTuple(const Tuple &tuple) {
+bool StorageBlock::insertTuple(const Tuple &tuple,
+                               const TransactionId tid,
+                               StorageManager *storage_manager) {
   if (!ad_hoc_insert_supported_) {
     return false;
   }
@@ -221,6 +224,10 @@ bool StorageBlock::insertTuple(const Tuple &tuple) {
   }
 
   if (update_succeeded) {
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      log_manager->logInsert(tid, id_, tuple_store_insert_result.inserted_id, &tuple);
+    }
     dirty_ = true;
     return true;
   } else {

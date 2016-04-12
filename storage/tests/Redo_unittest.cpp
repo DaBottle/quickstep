@@ -43,7 +43,7 @@ class RedoTest : public ::testing::Test {
   static const relation_id kRelationId = 100;
   static const int kTupleNumber = 10;
   static const int kMaxAttributeId = 3;
-  static const TransactionId tid = 5;
+  static const TransactionId kTid = 5;
 
   virtual void SetUp() {
     relation_.reset(new CatalogRelation(NULL, "TestRelation", kRelationId));
@@ -141,8 +141,8 @@ class RedoTest : public ::testing::Test {
     MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
     
     for (int i = 0; i < num; ++i) {
-      std::unique_ptr<Tuple> tuple(createTuple(i));
-      block->insertTupleInBatch(*tuple);
+      Tuple* tuple = createTuple(i);
+      block->insertTuple(*tuple, kTid, storage_manager_.get());
     }
   }
 
@@ -207,7 +207,7 @@ class RedoTest : public ::testing::Test {
                                                     &bus_));
 
     return block->update((*assignments.get()), predicate.get(), relocation.get(),
-                        tid, storage_manager_.get());
+                        kTid, storage_manager_.get());
   }
 
   // Check if the two blocks are the same except block_id
@@ -259,6 +259,67 @@ class RedoTest : public ::testing::Test {
       });
     });
   }
+
+  // Redo the operation on the given block according to the log
+  void redo(block_id bid, std::string log) {
+    switch (log.at(Macros::kTYPE_START)) {
+      case LogRecord::LogRecordType::kUPDATE:
+        redoUpdate(bid, log.substr(Macros::kHEADER_LENGTH));
+        break;
+      case LogRecord::LogRecordType::kINSERT:
+        redoInsert(bid, log.substr(Macros::kHEADER_LENGTH));
+        break;
+      default:
+        return;
+    }
+  }
+
+  // Redo an update operation
+  void redoUpdate(block_id bid, std::string payload) {
+    std::unique_ptr<std::unordered_map<attribute_id, TypedValue>> updated_values
+      (new std::unordered_map<attribute_id, TypedValue>());
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+            
+    // Check block 
+    int index = 0;
+    int length = payload.length();
+    index += sizeof(block_id);
+
+    // Redo the update
+    tuple_id tup_id = Helper::strToInt(payload.substr(index, sizeof(tuple_id)));
+    index += sizeof(tuple_id);
+
+    // For each attribute, find the updated value
+    while (index < length) {
+      attribute_id attr_id = Helper::strToInt(payload.substr(index, sizeof(attribute_id)));
+      index += sizeof(attribute_id);
+      TypedValue pre_value = Helper::strToValue(payload.substr(index));
+      index += Helper::valueLength(pre_value);
+      TypedValue post_value = Helper::strToValue(payload.substr(index));
+      index += Helper::valueLength(post_value);
+      updated_values->insert(std::make_pair(attr_id, post_value));
+    }
+    
+    block->updateTupleInPlace(updated_values.get(), tup_id);
+  }
+
+  void redoInsert(block_id bid, std::string payload) {
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+    std::vector<TypedValue> values;
+    int index = 0;
+    int length = payload.length();
+    index += sizeof(block_id) + sizeof(tuple_id);
+
+    // Add TypedValues into vector
+    while (index < length) {
+      TypedValue value = Helper::strToValue(payload.substr(index));
+      values.push_back(value);
+      index += Helper::valueLength(value);
+    }
+    EXPECT_EQ(index, length);
+    Tuple *tuple = new Tuple(std::move(values));
+    block->insertTuple(*tuple, kTid, storage_manager_.get());
+  }
   
   std::unique_ptr<StorageManager> storage_manager_;
   std::unique_ptr<CatalogRelation> relation_;
@@ -277,10 +338,12 @@ TEST_F(RedoTest, InPlaceUpdateTest) {
   relation_->addBlock(new_block_id);
   ASSERT_EQ(old_block_id + 1, new_block_id);
 
-  // Insert tuples to both blocks
+  // Insert tuples to both blocks (not logged)
+  storage_manager_->setLogStatus(false);
   insertSampleTuples(old_block_id, kTupleNumber);
   insertSampleTuples(new_block_id, kTupleNumber);
 
+  storage_manager_->setLogStatus(true);
   // Update tuples in the original block
   // Update a tuple without NULL value involved
   result = update(old_block_id, 1, 5);
@@ -296,55 +359,62 @@ TEST_F(RedoTest, InPlaceUpdateTest) {
   EXPECT_FALSE(result.relocation_destination_used);
 
   // Rebuild the block in old_block_id+1 from log
+  storage_manager_->setLogStatus(false);
   LogManager* log_manager = storage_manager_->getLogManager();
   std::string buffer(log_manager->getBuffer());
-  while (buffer.length() > 0) {
-    int length, index, payload_length;
-    std::string header, payload;
-    block_id bid;
-    tuple_id tup_id;
-    MutableBlockReference new_block;
-    std::unique_ptr<std::unordered_map<attribute_id, TypedValue>> updated_values;
-    
+
+  while (buffer.length() > 0) {    
     // Get the log string from the buffer
-    length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
-    payload_length = length - Macros::kHEADER_LENGTH;
-    header = buffer.substr(0, Macros::kHEADER_LENGTH);
-    payload = buffer.substr(Macros::kPAYLOAD_START, payload_length);
-    buffer = buffer.substr(length);
-
-    // Check type and block
-    ASSERT_EQ((int) LogRecord::LogRecordType::kUPDATE,
-              (int) header.at(Macros::kTYPE_START));
-    index = 0;
-    bid = Helper::strToId(payload.substr(index, sizeof(block_id)));
-    index += sizeof(block_id);
-    ASSERT_EQ(old_block_id, bid);
-    new_block = storage_manager_->getBlockMutable(bid + 1, *relation_);
-
-    // Redo the update
-    tup_id = Helper::strToInt(payload.substr(index, sizeof(tuple_id)));
-    index += sizeof(tuple_id);
-    updated_values.reset(new std::unordered_map<attribute_id, TypedValue>());
-
-    // For each attribute, find the updated value
-    while (index < payload_length) {
-      attribute_id attr_id = Helper::strToInt(payload.substr(index, sizeof(attribute_id)));
-      index += sizeof(attribute_id);
-      TypedValue pre_value = Helper::strToValue(payload.substr(index));
-      index += Helper::valueLength(pre_value);
-      TypedValue post_value = Helper::strToValue(payload.substr(index));
-      index += Helper::valueLength(post_value);
-      updated_values->insert(std::make_pair(attr_id, post_value));
-    }
+    int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+    block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+    EXPECT_EQ(old_block_id, log_block_id);
     
-    new_block->updateTupleInPlace(updated_values.get(), tup_id);
+    // Redo the operation on another block
+    redo(new_block_id, buffer.substr(0, length));
+    buffer = buffer.substr(length);
   }
   
+  // Compare two blocks
   EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
+  
   // Clean up
   storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
+  storage_manager_->setLogStatus(true);
+  log_manager->sendForceRequest();
+}
+
+TEST_F(RedoTest, InsertTest) {
+  // Rebuild the block in a new block in order to compare with the old one
+  block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(old_block_id);
+  block_id new_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(new_block_id);
+  ASSERT_EQ(old_block_id + 1, new_block_id);
+
+  insertSampleTuples(old_block_id, kTupleNumber);
+
+  // Rebuild the block from log
+  storage_manager_->setLogStatus(false);
+  LogManager *log_manager = storage_manager_->getLogManager();
+  std::string buffer(log_manager->getBuffer());
+  while (buffer.length() > 0) {
+    int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+    block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+    EXPECT_EQ(old_block_id, log_block_id);
+    
+    redo(new_block_id, buffer.substr(0, length));
+    buffer = buffer.substr(length);
+  }
+
+  // Compare two blocks
+  EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
+  
+  // Clean up
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+  storage_manager_->deleteBlockOrBlobFile(old_block_id);
+  storage_manager_->setLogStatus(true);
+  log_manager->sendForceRequest();
 }
 
 } // namespace quickstep
