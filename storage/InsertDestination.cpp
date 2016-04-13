@@ -166,7 +166,10 @@ void InsertDestination::insertTupleInBatch(const Tuple &tuple,
   returnBlock(std::move(output_block), false);
 }
 
-void InsertDestination::bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full) {
+void InsertDestination::bulkInsertTuples(ValueAccessor *accessor,
+                                         const TransactionId tid,
+                                         StorageManager *storage_manager,
+                                         bool always_mark_full) {
   InvokeOnAnyValueAccessor(
       accessor,
       [&](auto *accessor) -> void {  // NOLINT(build/c++11)
@@ -174,7 +177,7 @@ void InsertDestination::bulkInsertTuples(ValueAccessor *accessor, bool always_ma
     while (!accessor->iterationFinished()) {
       MutableBlockReference output_block = this->getBlockForInsertion();
       // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
-      if (output_block->bulkInsertTuples(accessor) == 0) {
+      if (output_block->bulkInsertTuples(accessor, tid, storage_manager) == 0) {
         // output_block is full.
         this->returnBlock(std::move(output_block), true);
       } else {
@@ -445,7 +448,10 @@ void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple,
   returnBlockInPartition(std::move(output_block), false, part_id);
 }
 
-void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full) {
+void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor,
+                                                       TransactionId tid,
+                                                       StorageManager *storage_manager,
+                                                       bool always_mark_full) {
   const PartitionScheme &part_scheme = relation_->getPartitionScheme();
   const std::size_t num_partitions = part_scheme.getNumPartitions();
 
@@ -482,7 +488,7 @@ void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor, 
       adapter[partition]->beginIteration();
       while (!adapter[partition]->iterationFinished()) {
         MutableBlockReference output_block = this->getBlockForInsertionInPartition(partition);
-        if (output_block->bulkInsertTuples(adapter[partition].get()) == 0) {
+        if (output_block->bulkInsertTuples(adapter[partition].get(), tid, storage_manager) == 0) {
           this->returnBlockInPartition(std::move(output_block), true, partition);
         } else {
           // Bulk insert into output_block was successful. output_block

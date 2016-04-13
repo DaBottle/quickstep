@@ -105,10 +105,14 @@ class InsertDestinationInterface {
    *
    * @param accessor A ValueAccessor whose tuples will by inserted into blocks
    *        from this InsertDestination.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    * @param always_mark_full If \c true, always mark the blocks full after
    *        insertion from ValueAccessor even when partially full.
    **/
   virtual void bulkInsertTuples(ValueAccessor *accessor,
+                                const TransactionId tid,
+                                StorageManager *storage_manager,
                                 bool always_mark_full = false) = 0;
 
   /**

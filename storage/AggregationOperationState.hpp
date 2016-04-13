@@ -168,9 +168,11 @@ class AggregationOperationState {
   void aggregateBlockHashTable(const block_id input_block);
 
   void finalizeSingleState(InsertDestination *output_destination,
-                          const TransactionId tid,
-                          StorageManager *storage_manager) const;
-  void finalizeHashTable(InsertDestination *output_destination) const;
+                           const TransactionId tid,
+                           StorageManager *storage_manager) const;
+  void finalizeHashTable(InsertDestination *output_destination,
+                         const TransactionId tid,
+                         StorageManager *storage_manager) const;
 
   // Common state for all aggregates in this operation: the input relation, the
   // filter predicate (if any), and the list of GROUP BY expressions (if any).

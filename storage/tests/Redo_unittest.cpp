@@ -32,6 +32,7 @@
 #include "types/LongType.hpp"
 #include "types/TypeID.hpp"
 #include "types/VarCharType.hpp"
+#include "types/containers/ColumnVector.hpp"
 #include "types/containers/Tuple.hpp"
 #include "types/operations/comparisons/ComparisonFactory.hpp"
 #include "types/operations/comparisons/ComparisonID.hpp"
@@ -44,6 +45,7 @@ class RedoTest : public ::testing::Test {
   static const int kTupleNumber = 10;
   static const int kMaxAttributeId = 3;
   static const TransactionId kTid = 5;
+  static const int kMaxTupleNumber = 100;
 
   virtual void SetUp() {
     relation_.reset(new CatalogRelation(NULL, "TestRelation", kRelationId));
@@ -102,7 +104,7 @@ class RedoTest : public ::testing::Test {
       attrs.emplace_back(static_cast<double>(0.25 * base_value));
     }
 
-    // narrow_char_attr
+    // char_attr
     if (base_value % 8 == 4) {
       // NULL very eighth value.
       attrs.emplace_back(CharType::InstanceNullable(4).makeNullValue());
@@ -110,22 +112,22 @@ class RedoTest : public ::testing::Test {
       std::ostringstream char_buffer;
       char_buffer << base_value;
       std::string string_literal(char_buffer.str());
-      attrs.emplace_back(CharType::InstanceNonNullable(4).makeValue(
+      attrs.emplace_back(CharType::InstanceNullable(4).makeValue(
           string_literal.c_str(),
           string_literal.size() > 3 ? 4
                                     : string_literal.size() + 1));
       attrs.back().ensureNotReference();
     }
 
-    // wide_char_attr
+    // varchar_attr
     if (base_value % 8 == 6) {
       // NULL very eighth value.
-      attrs.emplace_back(CharType::InstanceNullable(32).makeNullValue());
+      attrs.emplace_back(VarCharType::InstanceNullable(32).makeNullValue());
     } else {
       std::ostringstream char_buffer;
       char_buffer << "Here are some numbers: " << base_value;
       std::string string_literal(char_buffer.str());
-      attrs.emplace_back(CharType::InstanceNonNullable(32).makeValue(
+      attrs.emplace_back(VarCharType::InstanceNullable(32).makeValue(
           string_literal.c_str(),
           string_literal.size() + 1));
       attrs.back().ensureNotReference();
@@ -153,6 +155,53 @@ class RedoTest : public ::testing::Test {
       Tuple* tuple = createTuple(i);
       block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
     }
+  }
+
+  void bulkInsertSampleTuples(block_id bid, int num) {
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+
+    // Build vectors for each attributes
+    NativeColumnVector *int_vector = new NativeColumnVector(
+        relation_->getAttributeById(0)->getType(),
+        kMaxTupleNumber);
+    NativeColumnVector *double_vector = new NativeColumnVector(
+        relation_->getAttributeById(1)->getType(),
+        kMaxTupleNumber);
+
+    NativeColumnVector *char_vector = new NativeColumnVector(
+            relation_->getAttributeById(2)->getType(),
+            kMaxTupleNumber);
+
+    IndirectColumnVector *varchar_vector = new IndirectColumnVector(
+            relation_->getAttributeById(3)->getType(),
+            kMaxTupleNumber);
+
+    NativeColumnVector *base_vector = new NativeColumnVector(
+        relation_->getAttributeById(4)->getType(),
+        kMaxTupleNumber);
+
+
+    // Add tuples to vectors
+    for (int i = 0; i < num; ++i) {
+      Tuple* tuple = createTuple(i);
+      int_vector->appendTypedValue(tuple->getAttributeValue(0));
+      double_vector->appendTypedValue(tuple->getAttributeValue(1));
+      char_vector->appendTypedValue(tuple->getAttributeValue(2));
+      varchar_vector->appendTypedValue(tuple->getAttributeValue(3));
+      base_vector->appendTypedValue(tuple->getAttributeValue(4));
+    }
+
+    // Create a value accessor
+    ColumnVectorsValueAccessor accessor;
+    accessor.addColumn(int_vector);
+    accessor.addColumn(double_vector);
+    accessor.addColumn(char_vector);
+    accessor.addColumn(varchar_vector);
+    accessor.addColumn(base_vector);
+
+    // Actually do the bulk insertion
+    accessor.beginIteration();
+    block->bulkInsertTuples(&accessor, kTid, storage_manager_.get());
   }
 
   // update the base tuple to a series of new values
@@ -410,7 +459,8 @@ TEST_F(RedoTest, InsertTest) {
   ASSERT_EQ(old_block_id + 1, new_block_id);
 
   insertSampleTuples(old_block_id, kTupleNumber);
-  insertSampleTuplesInBatch(old_block_id, kTupleNumber + 1);
+  insertSampleTuplesInBatch(old_block_id, kTupleNumber);
+  bulkInsertSampleTuples(old_block_id, kTupleNumber);
 
   // Rebuild the block from log
   storage_manager_->setLogStatus(false);

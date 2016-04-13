@@ -143,7 +143,7 @@ class StorageBlockSortTest : public ::testing::Test {
 
     OrderedTupleIdSequence sorted_sequence;
     MutableBlockReference block = storage_manager_->getBlockMutable(block_id_, *table_);
-    block->sort(sort_columns, sort_is_ascending, null_first, &sorted_sequence, nullptr);
+    block->sort(sort_columns, sort_is_ascending, null_first, &sorted_sequence, nullptr, kTid, storage_manager_.get());
 
     ASSERT_EQ(static_cast<std::size_t>(kNumTuples), sorted_sequence.size());
     test_instance.assertTupleIdSequence(sorted_sequence, tuple_mapping_);

@@ -259,23 +259,28 @@ bool StorageBlock::insertTupleInBatch(const Tuple &tuple,
   }
 }
 
-tuple_id StorageBlock::bulkInsertTuples(ValueAccessor *accessor) {
+tuple_id StorageBlock::bulkInsertTuples(ValueAccessor *accessor,
+                                        const TransactionId tid,
+                                        StorageManager *storage_manager) {
   const tuple_id num_inserted = tuple_store_->bulkInsertTuples(accessor);
   if (num_inserted != 0) {
-    /*
     // Write Log
     if (storage_manager->needLog()) {
       LogManager *log_manager = storage_manager->getLogManager();
-      InvokeOnAnyValueAccessor (accessor.get(), [&] (auto *accessor) -> void {
+      InvokeOnAnyValueAccessor (accessor, [&] (auto *accessor) -> void {
         accessor->beginIteration();
         // Only write log for the inserted tuples
         for (int i = 0; i < num_inserted; ++i) {
           DEBUG_ASSERT(accessor->next());
 
           Tuple *tuple = accessor->getTuple();
+          log_manager->logInsertInBatch(tid,
+                                        id_,
+                                        tuple_store_->numTuples() - num_inserted + i,
+                                        tuple);
         }
       });
-    }*/
+    }
     invalidateAllIndexes();
     dirty_ = true;
   } else if (tuple_store_->isEmpty()) {
@@ -305,7 +310,9 @@ tuple_id StorageBlock::bulkInsertTuplesWithRemappedAttributes(
 
 void StorageBlock::select(const vector<unique_ptr<const Scalar>> &selection,
                           const Predicate *predicate,
-                          InsertDestinationInterface *destination) const {
+                          InsertDestinationInterface *destination,
+                          const TransactionId tid,
+                          StorageManager *storage_manager) const {
   ColumnVectorsValueAccessor temp_result;
   {
     SubBlocksReference sub_blocks_ref(*tuple_store_,
@@ -330,7 +337,7 @@ void StorageBlock::select(const vector<unique_ptr<const Scalar>> &selection,
     }
   }
 
-  destination->bulkInsertTuples(&temp_result);
+  destination->bulkInsertTuples(&temp_result, tid, storage_manager);
 }
 
 void StorageBlock::selectSimple(const std::vector<attribute_id> &selection,
@@ -789,7 +796,9 @@ void StorageBlock::sort(const PtrVector<Scalar> &order_by,  // NOLINT(build/incl
                         const std::vector<bool> &sort_is_ascending,
                         const std::vector<bool> &null_first,
                         OrderedTupleIdSequence *sorted_sequence,
-                        InsertDestinationInterface *output_destination) const {
+                        InsertDestinationInterface *output_destination,
+                        TransactionId tid,
+                        StorageManager *storage_manager) const {
   // TODO(shoban): We, currently, use a scheme where we stable sort the
   // tuple-id-sequence from last to first columns in ORDER BY clause to produce
   // the final sorted sequence. We could on the other hand sort from first to
@@ -847,7 +856,7 @@ void StorageBlock::sort(const PtrVector<Scalar> &order_by,  // NOLINT(build/incl
     // or more sorted blocks for each input blocks. It would be useful to
     // remember the list of sorted blocks as an initial run for the merge phase
     // of sorting.
-    output_destination->bulkInsertTuples(ordered_accessor.get(), true);
+    output_destination->bulkInsertTuples(ordered_accessor.get(), tid, storage_manager, true);
   }
 }
 

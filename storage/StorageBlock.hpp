@@ -267,9 +267,13 @@ class StorageBlock : public StorageBlockBase {
    *        relation. The accessor's iteration will be advanced to the first
    *        non-inserted tuple or, if all accessible tuples were inserted in
    *        this block, to the end position.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    * @return The number of tuples inserted from accessor.
    **/
-  tuple_id bulkInsertTuples(ValueAccessor *accessor);
+  tuple_id bulkInsertTuples(ValueAccessor *accessor,
+                            const TransactionId tid,
+                            StorageManager *storage_manager);
 
   /**
    * @brief Insert as many tuples as possible from a ValueAccessor (all of the
@@ -310,6 +314,9 @@ class StorageBlock : public StorageBlockBase {
    *        should be matched.
    * @param destination Where to insert the tuples resulting from the SELECT
    *        query.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
+   * 
    * @exception TupleTooLargeForBlock A tuple produced by this selection was
    *            too large to insert into an empty block provided by
    *            destination. Selection may be partially complete (with some
@@ -319,7 +326,9 @@ class StorageBlock : public StorageBlockBase {
    **/
   void select(const std::vector<std::unique_ptr<const Scalar>> &selection,
               const Predicate *predicate,
-              InsertDestinationInterface *destination) const;
+              InsertDestinationInterface *destination,
+              TransactionId tid,
+              StorageManager *storage_manager) const;
 
   /**
    * @brief Perform a simple SELECT query on this StorageBlock which only
@@ -497,12 +506,16 @@ class StorageBlock : public StorageBlockBase {
    * @param output_destination Destination to write the sorted tuples output
    *        to. This argument can be nullptr, in which case no output is
    *        written.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    */
   void sort(const PtrVector<Scalar> &order_by,  // NOLINT(build/include_what_you_use)
             const std::vector<bool> &sort_is_ascending,
             const std::vector<bool> &null_first,
             OrderedTupleIdSequence *sorted_sequence,
-            InsertDestinationInterface *output_destination) const;
+            InsertDestinationInterface *output_destination,
+            TransactionId tid,
+            StorageManager *storage_manager) const;
 
   /**
    * @brief Delete tuples (optionally matching a predicate) from this

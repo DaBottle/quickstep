@@ -1208,6 +1208,7 @@ target_link_libraries(Redo_unittest
                       quickstep_types_LongType
                       quickstep_types_TypeID
                       quickstep_types_VarCharType
+                      quickstep_types_containers_ColumnVector
                       quickstep_types_containers_Tuple
                       quickstep_types_operations_comparisons_ComparisonFactory
                       quickstep_types_operations_comparisons_ComparisonID

@@ -249,7 +249,7 @@ void AggregationOperationState::finalizeAggregate(InsertDestination *output_dest
   if (group_by_list_.empty()) {
     finalizeSingleState(output_destination, tid, storage_manager);
   } else {
-    finalizeHashTable(output_destination);
+    finalizeHashTable(output_destination, tid, storage_manager);
   }
 }
 
@@ -344,7 +344,9 @@ void AggregationOperationState::finalizeSingleState(InsertDestination *output_de
   output_destination->insertTuple(Tuple(std::move(attribute_values)), tid, storage_manager);
 }
 
-void AggregationOperationState::finalizeHashTable(InsertDestination *output_destination) const {
+void AggregationOperationState::finalizeHashTable(InsertDestination *output_destination,
+                                                  const TransactionId tid,
+                                                  StorageManager *storage_manager) const {
   // Each element of 'group_by_keys' is a vector of values for a particular
   // group (which is also the prefix of the finalized Tuple for that group).
   std::vector<std::vector<TypedValue>> group_by_keys;
@@ -397,7 +399,7 @@ void AggregationOperationState::finalizeHashTable(InsertDestination *output_dest
   }
 
   // Bulk-insert the complete result.
-  output_destination->bulkInsertTuples(&complete_result);
+  output_destination->bulkInsertTuples(&complete_result, tid, storage_manager);
 }
 
 }  // namespace quickstep

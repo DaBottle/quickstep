@@ -138,7 +138,10 @@ class InsertDestination : public InsertDestinationInterface {
                           const TransactionId tid,
                           StorageManager *storage_manager) override;
 
-  void bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full = false) override;
+  void bulkInsertTuples(ValueAccessor *accessor,
+                        const TransactionId tid,
+                        StorageManager *storage_manager,
+                        bool always_mark_full = false) override;
 
   void bulkInsertTuplesWithRemappedAttributes(
       const std::vector<attribute_id> &attribute_map,
@@ -423,7 +426,10 @@ class PartitionAwareInsertDestination : public InsertDestination {
                           const TransactionId tid,
                           StorageManager *storage_manager) override;
 
-  void bulkInsertTuples(ValueAccessor *accessor, bool always_mark_full = false) override;
+  void bulkInsertTuples(ValueAccessor *accessor,
+                        const TransactionId tid,
+                        StorageManager *storage_manager,
+                        bool always_mark_full = false) override;
 
   void bulkInsertTuplesWithRemappedAttributes(
       const std::vector<attribute_id> &attribute_map,
