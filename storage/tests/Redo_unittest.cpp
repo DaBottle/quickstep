@@ -157,7 +157,7 @@ class RedoTest : public ::testing::Test {
     }
   }
 
-  void bulkInsertSampleTuples(block_id bid, int num) {
+  void bulkInsertSampleTuples(block_id bid, int num, bool remapped) {
     MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
 
     // Build vectors for each attributes
@@ -193,15 +193,33 @@ class RedoTest : public ::testing::Test {
 
     // Create a value accessor
     ColumnVectorsValueAccessor accessor;
-    accessor.addColumn(int_vector);
-    accessor.addColumn(double_vector);
-    accessor.addColumn(char_vector);
-    accessor.addColumn(varchar_vector);
-    accessor.addColumn(base_vector);
+    // Remapped attributes: here we do a reverse order
+    if (remapped) {
+      accessor.addColumn(base_vector);
+      accessor.addColumn(varchar_vector);
+      accessor.addColumn(char_vector);
+      accessor.addColumn(double_vector);
+      accessor.addColumn(int_vector);
 
-    // Actually do the bulk insertion
-    accessor.beginIteration();
-    block->bulkInsertTuples(&accessor, kTid, storage_manager_.get());
+      std::vector<attribute_id> attr_map({4, 3, 2, 1, 0});
+      accessor.beginIteration();
+      block->bulkInsertTuplesWithRemappedAttributes(attr_map,
+                                                    &accessor,
+                                                    kTid,
+                                                    storage_manager_.get());
+    }
+    // No remapped attributes
+    else {
+      accessor.addColumn(int_vector);
+      accessor.addColumn(double_vector);
+      accessor.addColumn(char_vector);
+      accessor.addColumn(varchar_vector);
+      accessor.addColumn(base_vector);
+
+      // Actually do the bulk insertion
+      accessor.beginIteration();
+      block->bulkInsertTuples(&accessor, kTid, storage_manager_.get());
+    }
   }
 
   // update the base tuple to a series of new values
@@ -458,9 +476,11 @@ TEST_F(RedoTest, InsertTest) {
   relation_->addBlock(new_block_id);
   ASSERT_EQ(old_block_id + 1, new_block_id);
 
+  // Do all four flavors of insertion
   insertSampleTuples(old_block_id, kTupleNumber);
   insertSampleTuplesInBatch(old_block_id, kTupleNumber);
-  bulkInsertSampleTuples(old_block_id, kTupleNumber);
+  bulkInsertSampleTuples(old_block_id, kTupleNumber, false);
+  bulkInsertSampleTuples(old_block_id, kTupleNumber, true);
 
   // Rebuild the block from log
   storage_manager_->setLogStatus(false);

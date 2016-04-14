@@ -146,6 +146,8 @@ class InsertDestination : public InsertDestinationInterface {
   void bulkInsertTuplesWithRemappedAttributes(
       const std::vector<attribute_id> &attribute_map,
       ValueAccessor *accessor,
+      const TransactionId tid,
+      StorageManager *storage_manager,
       bool always_mark_full = false) override;
 
   void insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,
@@ -434,6 +436,8 @@ class PartitionAwareInsertDestination : public InsertDestination {
   void bulkInsertTuplesWithRemappedAttributes(
       const std::vector<attribute_id> &attribute_map,
       ValueAccessor *accessor,
+      const TransactionId tid,
+      StorageManager *storage_manager,
       bool always_mark_full = false) override;
 
   void insertTuplesFromVector(std::vector<Tuple>::const_iterator begin,

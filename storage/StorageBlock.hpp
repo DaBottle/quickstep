@@ -299,11 +299,16 @@ class StorageBlock : public StorageBlockBase {
    *        iteration will be advanced to the first non-inserted tuple or, if
    *        all accessible tuples were inserted in this block, to the end
    *        position.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
+   * 
    * @return The number of tuples inserted from accessor.
    **/
   tuple_id bulkInsertTuplesWithRemappedAttributes(
       const std::vector<attribute_id> &attribute_map,
-      ValueAccessor *accessor);
+      ValueAccessor *accessor,
+      const TransactionId tid,
+      StorageManager *storage_manager);
 
   /**
    * @brief Perform a SELECT query on this StorageBlock.
@@ -339,6 +344,9 @@ class StorageBlock : public StorageBlockBase {
    * @param selection The attributes to project.
    * @param predicate A predicate for selection. NULL indicates that all tuples
    *        should be matched.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
+   * 
    * @exception TupleTooLargeForBlock A tuple produced by this selection was
    *            too large to insert into an empty block provided by
    *            destination. Selection may be partially complete (with some
@@ -351,7 +359,9 @@ class StorageBlock : public StorageBlockBase {
    **/
   void selectSimple(const std::vector<attribute_id> &selection,
                     const Predicate *predicate,
-                    InsertDestinationInterface *destination) const;
+                    InsertDestinationInterface *destination,
+                    const TransactionId tid,
+                    StorageManager *storage_manager) const;
 
   /**
    * @brief Perform non GROUP BY aggregation on the tuples in the this storage
@@ -523,6 +533,8 @@ class StorageBlock : public StorageBlockBase {
    *
    * @param predicate Delete tuples matching predicate (NULL indicates all
    *        tuples should be deleted).
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    **/
   void deleteTuples(const Predicate *predicate);
 

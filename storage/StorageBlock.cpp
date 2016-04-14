@@ -293,11 +293,41 @@ tuple_id StorageBlock::bulkInsertTuples(ValueAccessor *accessor,
 
 tuple_id StorageBlock::bulkInsertTuplesWithRemappedAttributes(
     const std::vector<attribute_id> &attribute_map,
-    ValueAccessor *accessor) {
+    ValueAccessor *accessor,
+    const TransactionId tid,
+    StorageManager *storage_manager) {
   const tuple_id num_inserted
       = tuple_store_->bulkInsertTuplesWithRemappedAttributes(attribute_map,
                                                              accessor);
   if (num_inserted != 0) {
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      InvokeOnAnyValueAccessor (accessor, [&] (auto *accessor) -> void {
+        accessor->beginIteration();
+        // Only write log for the inserted tuples
+        for (int i = 0; i < num_inserted; ++i) {
+          DEBUG_ASSERT(accessor->next());
+
+          std::vector<TypedValue> values_in_order;
+
+
+          // Reorder the attributes in the value accessor before logging
+          for (std::vector<attribute_id>::const_iterator attr_map_it
+                  = attribute_map.begin();
+               attr_map_it != attribute_map.end();
+               ++attr_map_it) {
+            values_in_order.push_back(accessor->getTypedValue(*attr_map_it));
+          }
+
+          Tuple *tuple = new Tuple(std::move(values_in_order));
+          log_manager->logInsertInBatch(tid,
+                                        id_,
+                                        tuple_store_->numTuples() - num_inserted + i,
+                                        tuple);
+        }
+      });
+    }
+    
     invalidateAllIndexes();
     dirty_ = true;
   } else if (tuple_store_->isEmpty()) {
@@ -342,7 +372,9 @@ void StorageBlock::select(const vector<unique_ptr<const Scalar>> &selection,
 
 void StorageBlock::selectSimple(const std::vector<attribute_id> &selection,
                                 const Predicate *predicate,
-                                InsertDestinationInterface *destination) const {
+                                InsertDestinationInterface *destination,
+                                const TransactionId tid,
+                                StorageManager *storage_manager) const {
   std::unique_ptr<ValueAccessor> accessor;
   std::unique_ptr<TupleIdSequence> matches;
   if (predicate == nullptr) {
@@ -353,7 +385,9 @@ void StorageBlock::selectSimple(const std::vector<attribute_id> &selection,
   }
 
   destination->bulkInsertTuplesWithRemappedAttributes(selection,
-                                                      accessor.get());
+                                                      accessor.get(),
+                                                      tid,
+                                                      storage_manager);
 }
 
 AggregationState* StorageBlock::aggregate(

@@ -193,6 +193,8 @@ void InsertDestination::bulkInsertTuples(ValueAccessor *accessor,
 void InsertDestination::bulkInsertTuplesWithRemappedAttributes(
     const std::vector<attribute_id> &attribute_map,
     ValueAccessor *accessor,
+    const TransactionId tid,
+    StorageManager *storage_manager,
     bool always_mark_full) {
   InvokeOnAnyValueAccessor(
       accessor,
@@ -203,7 +205,9 @@ void InsertDestination::bulkInsertTuplesWithRemappedAttributes(
       // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
       if (output_block->bulkInsertTuplesWithRemappedAttributes(
               attribute_map,
-              accessor) == 0) {
+              accessor,
+              tid,
+              storage_manager) == 0) {
         // output_block is full.
         this->returnBlock(std::move(output_block), true);
       } else {
@@ -503,7 +507,11 @@ void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor,
 }
 
 void PartitionAwareInsertDestination::bulkInsertTuplesWithRemappedAttributes(
-    const std::vector<attribute_id> &attribute_map, ValueAccessor *accessor, bool always_mark_full) {
+    const std::vector<attribute_id> &attribute_map,
+    ValueAccessor *accessor,
+    const TransactionId tid,
+    StorageManager *storage_manager,
+    bool always_mark_full) {
 
   const PartitionScheme &part_scheme = relation_->getPartitionScheme();
   const std::size_t num_partitions = part_scheme.getNumPartitions();
@@ -541,7 +549,10 @@ void PartitionAwareInsertDestination::bulkInsertTuplesWithRemappedAttributes(
       adapter[partition]->beginIteration();
       while (!adapter[partition]->iterationFinished()) {
         MutableBlockReference output_block = this->getBlockForInsertionInPartition(partition);
-        if (output_block->bulkInsertTuplesWithRemappedAttributes(attribute_map, adapter[partition].get()) == 0) {
+        if (output_block->bulkInsertTuplesWithRemappedAttributes(attribute_map,
+                                                                 adapter[partition].get(),
+                                                                 tid,
+                                                                 storage_manager) == 0) {
           this->returnBlockInPartition(std::move(output_block), true, partition);
         } else {
           // Bulk insert into output_block was successful. output_block
