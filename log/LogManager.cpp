@@ -51,6 +51,13 @@ namespace quickstep {
     writeToBuffer(record);
   }
 
+  void LogManager::logRebuild(const TransactionId tid,
+                              const block_id bid,
+                              ValueAccessor *accessor) {
+    RebuildLogRecord *record = new RebuildLogRecord(tid, LogRecord::LogRecordType::kREBUILD, bid, accessor);
+    writeToBuffer(record);
+  }
+
   void LogManager::sendForceRequest() {
     mutex_.lock();
     std::uint32_t log_index = current_LSN_ >> Macros::kLOG_INDEX_SHIFT;

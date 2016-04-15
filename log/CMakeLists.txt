@@ -28,6 +28,7 @@ target_link_libraries(quickstep_log_LogManager
 target_link_libraries(quickstep_log_LogRecord
                       quickstep_catalog_CatalogTypedefs
                       quickstep_storage_StorageBlockInfo
+                      quickstep_storage_ValueAccessor
                       quickstep_log_Helper
                       quickstep_log_Macros
                       quickstep_transaction_Transaction)
@@ -47,12 +48,18 @@ add_executable(LogManager_unittest
 
 target_link_libraries(LogManager_unittest
                       gtest
-	                    gtest_main
+	                  gtest_main
                       quickstep_log_Helper
                       quickstep_log_LogManager
                       quickstep_log_LogRecord
                       quickstep_log_Macros
-                      quickstep_transaction_Transaction)
+                      quickstep_storage_ValueAccessor
+                      quickstep_storage_ValueAccessorUtil
+                      quickstep_transaction_Transaction
+                      quickstep_types_containers_Tuple
+                      quickstep_types_operations_comparisons_EqualComparison
+                      quickstep_types_TypeFactory
+                      quickstep_types_TypeID)
 
 add_executable(LogTable_unittest
               "${CMAKE_CURRENT_SOURCE_DIR}/tests/LogTable_unittest.cpp")

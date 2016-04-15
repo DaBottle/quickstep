@@ -1,6 +1,9 @@
 #include "log/Helper.hpp"
 #include "log/LogRecord.hpp"
 #include "log/Macros.hpp"
+#include "storage/ValueAccessor.hpp"
+#include "storage/ValueAccessorUtil.hpp"
+#include "types/containers/Tuple.hpp"
 #include "types/operations/comparisons/EqualComparison.hpp"
 #include <string.h>
 #include <utility>
@@ -90,6 +93,38 @@ namespace quickstep {
     }
     
     return payload;
+  }
+
+  // RebuildLogRecord
+  RebuildLogRecord::RebuildLogRecord(const TransactionId tid,
+                                     const LogRecordType log_record_type,
+                                     const block_id bid,
+                                     ValueAccessor* accessor)
+  : LogRecord(tid, log_record_type)
+  , bid_(bid)
+  , accessor_(accessor) {}
+
+  std::string RebuildLogRecord::payload() const {
+    return InvokeOnAnyValueAccessor (accessor_, [&] (auto *accessor_)
+        -> std::string {
+      std::string payload;
+      payload += Helper::idToStr(bid_);
+      accessor_->beginIteration();
+      while (accessor_->next()) {
+        int length;
+        std::string current_tuple_str;
+        Tuple* tuple = accessor_->getTuple();
+        for (Tuple::const_iterator tuple_it = tuple->begin();
+           tuple_it != tuple->end();
+           tuple_it++) {
+          current_tuple_str += Helper::valueToStr(*tuple_it);
+        }
+        length = current_tuple_str.length();
+        payload += Helper::intToStr(length) + current_tuple_str;
+      }
+
+      return payload;
+    });
   }
 
   // CommitLogRecord

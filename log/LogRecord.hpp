@@ -4,6 +4,7 @@
 #include "catalog/CatalogTypedefs.hpp"
 #include "expressions/scalar/Scalar.hpp"
 #include "storage/StorageBlockInfo.hpp"
+#include "storage/ValueAccessor.hpp"
 #include "transaction/Transaction.hpp"
 #include "types/TypedValue.hpp"
 #include "types/TypeID.hpp"
@@ -39,6 +40,7 @@ public:
     kINSERT = 6,
     kINSERT_BATCH = 7,
     kDELETE = 8,
+    kREBUILD = 9,
   };
 
   /**
@@ -136,6 +138,26 @@ private:
   const block_id bid_;
   const tuple_id tuple_id_;
   const Tuple* tuple_;
+};
+
+/**
+ * Rebuild Log Record
+ **/
+class RebuildLogRecord : public LogRecord {
+public:
+  RebuildLogRecord(const TransactionId tid,
+                   const LogRecordType log_record_type,
+                   const block_id bid,
+                   ValueAccessor* accessor);
+
+  // Format of rebuild log payload:
+  // bid(8)
+  // For each tuple: length(4), TypedValues
+  virtual std::string payload() const override;
+
+private:
+  const block_id bid_;
+  ValueAccessor* accessor_;
 };
 
 /**

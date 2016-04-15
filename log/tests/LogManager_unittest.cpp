@@ -2,6 +2,8 @@
 #include "log/LogManager.hpp"
 #include "log/LogRecord.hpp"
 #include "log/Macros.hpp"
+#include "storage/ValueAccessor.hpp"
+#include "storage/ValueAccessorUtil.hpp"
 #include "transaction/Transaction.hpp"
 #include "types/containers/Tuple.hpp"
 #include "types/operations/comparisons/EqualComparison.hpp"
@@ -124,7 +126,6 @@ TEST(LogManagerTest, UpdateTest) {
 }
 
 // Test if insert/delete log record could be handled correctly
-// Only test insert because delete is different only in header, which is tested in HeaderTranslationTest
 TEST(LogManagerTest, InsertDeleteTest) {
   LogManager log_manager;
   TransactionId tid(1);  
@@ -181,6 +182,58 @@ TEST(LogManagerTest, InsertDeleteTest) {
     }
   }
   EXPECT_EQ((int)payload.length(), index);
+}
+
+TEST(LogManagerTest, RebuildTest) {
+  LogManager log_manager;
+  int kMaxTupleNumber = 1000;
+  // Build vectors for each attributes
+  NativeColumnVector *int_vector = new NativeColumnVector(
+      TypeFactory::GetType(kInt, true), kMaxTupleNumber);
+  NativeColumnVector *double_vector = new NativeColumnVector(
+      TypeFactory::GetType(kDouble, true), kMaxTupleNumber);
+  IndirectColumnVector *str_vector = new IndirectColumnVector(
+      TypeFactory::GetType(kVarChar, 32, true), kMaxTupleNumber);
+
+  // Add one typed value for each vector
+  TypedValue old_int(1);
+  TypedValue old_double(1.0);
+  std::string str = "This is a string";
+  TypedValue old_str(kVarChar, str.c_str(), str.length());
+  int_vector->appendTypedValue(old_int);
+  double_vector->appendTypedValue(old_double);
+  str_vector->appendTypedValue(old_str);
+
+  // Build value accessor
+  ColumnVectorsValueAccessor accessor;
+  accessor.addColumn(int_vector);
+  accessor.addColumn(double_vector);
+  accessor.addColumn(str_vector);
+
+  // Get the payload of log
+  log_manager.logRebuild(1, 3, &accessor);
+  std::string payload = log_manager.getBuffer().substr(Macros::kHEADER_LENGTH);
+  int index = 0, length = payload.length();
+
+  // Check the information before tuple
+  EXPECT_EQ(static_cast<block_id>(3), Helper::strToId(payload.substr(index, sizeof(block_id))));
+  index += sizeof(block_id);
+  int tuple_length = Helper::strToInt(payload.substr(index, sizeof(int)));
+  EXPECT_EQ(length, static_cast<int>(tuple_length + sizeof(block_id) + sizeof(int)));
+  index += sizeof(int);
+
+  // Check tuple
+  TypedValue new_int = Helper::strToValue(payload.substr(index));
+  EXPECT_TRUE(Helper::valueEqual(old_int, new_int));
+  index += Helper::valueLength(new_int);
+  TypedValue new_double = Helper::strToValue(payload.substr(index));
+  EXPECT_TRUE(Helper::valueEqual(old_double, new_double));
+  index += Helper::valueLength(new_double);
+  TypedValue new_str = Helper::strToValue(payload.substr(index));
+  EXPECT_TRUE(Helper::valueEqual(old_str, new_str));
+  index += Helper::valueLength(new_str);
+
+  EXPECT_EQ(length, index);
 }
 
 /*

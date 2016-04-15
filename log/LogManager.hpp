@@ -45,6 +45,10 @@ public:
                  const tuple_id tupleId,
                  const Tuple* tuple);
 
+  void logRebuild(const TransactionId tid,
+                  const block_id bid,
+                  ValueAccessor *accessor);
+
   // write an empty log (only header)
   void logEmpty(TransactionId tid);
 
