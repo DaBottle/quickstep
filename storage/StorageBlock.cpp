@@ -514,8 +514,7 @@ StorageBlock::UpdateResult StorageBlock::update(
   UpdateResult retval;
   // TODO(chasseur): Be smarter and only update indexes that need to be updated.
   std::unique_ptr<TupleIdSequence> matches(getMatchesForPredicate(predicate));
-  LogManager *log_manager = storage_manager->getLogManager();
-
+  
   // If nothing matches the predicate, return immediately.
   if (matches->empty()) {
     retval.indices_consistent = all_indices_consistent_;
@@ -571,6 +570,7 @@ StorageBlock::UpdateResult StorageBlock::update(
         }
 
         // Write update log
+        LogManager *log_manager = storage_manager->getLogManager();
         log_manager->logUpdate(tid, id_, *match_it, old_values.get(),
                               updated_values.get());
       }
@@ -894,7 +894,9 @@ void StorageBlock::sort(const PtrVector<Scalar> &order_by,  // NOLINT(build/incl
   }
 }
 
-void StorageBlock::deleteTuples(const Predicate *predicate) {
+void StorageBlock::deleteTuples(const Predicate *predicate,
+                                const TransactionId tid,
+                                StorageManager *storage_manager) {
   std::unique_ptr<TupleIdSequence> matches(getMatchesForPredicate(predicate));
 
   if (!matches->empty()) {
@@ -908,6 +910,23 @@ void StorageBlock::deleteTuples(const Predicate *predicate) {
       }
     }
 
+    // Write log if needed.
+    // Have to write log before delete, otherwise the information of the tuple
+    // Will be lost.
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      TupleIdSequence::const_iterator match_it = matches->begin();
+      
+      ValueAccessor *accessor = tuple_store_->createValueAccessor(matches.get());
+      InvokeOnAnyValueAccessor (accessor, [&] (auto *accessor) -> void {
+        accessor->beginIteration();
+        while (accessor->next()) {
+          log_manager->logDelete(tid, id_, *match_it, accessor->getTuple());
+          match_it++;
+        }
+      });
+    }
+    
     // Delete tuples from the TupleStorageSubBlock.
     if (tuple_store_->bulkDeleteTuples(matches.get())) {
       // If the tuple-ID sequence was mutated, rebuild all indices.
@@ -927,6 +946,10 @@ void StorageBlock::deleteTuples(const Predicate *predicate) {
 
     dirty_ = true;
   }
+}
+
+void StorageBlock::deleteTupleAtPosition(const tuple_id tup_id) {
+  tuple_store_->deleteTuple(tup_id);
 }
 
 TupleStorageSubBlock* StorageBlock::CreateTupleStorageSubBlock(

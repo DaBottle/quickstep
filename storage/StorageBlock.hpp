@@ -536,7 +536,18 @@ class StorageBlock : public StorageBlockBase {
    * @param tid The id of the transaction that performs this method.
    * @param storage_manager A pointer to the storage manager.
    **/
-  void deleteTuples(const Predicate *predicate);
+  void deleteTuples(const Predicate *predicate,
+                    const TransactionId tid,
+                    StorageManager *storage_manager);
+
+  /**
+   * @brief Delete a tuple with the given tuple id.
+   * @note This method is only used for recovery manager. For deletion in
+   *       general purpose, please use deleteTuples().
+   *
+   * @param tup_id The id of the tuple that should be deleted
+   **/
+  void deleteTupleAtPosition(const tuple_id tup_id);
 
   /**
    * @brief Rebuild all SubBlocks in this StorageBlock, compacting storage

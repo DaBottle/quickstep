@@ -286,6 +286,20 @@ class RedoTest : public ::testing::Test {
                         kTid, storage_manager_.get());
   }
 
+  inline void deleteTuples(block_id bid, int base_value) {
+    DEBUG_ASSERT(base_value >= 0);
+    DEBUG_ASSERT(base_value < kTupleNumber);
+
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);    
+    std::unique_ptr<Predicate> predicate;
+    predicate.reset(new ComparisonPredicate(ComparisonFactory::GetComparison(ComparisonID::kEqual),
+                                            new ScalarAttribute(*(relation_->getAttributeByName("base_value"))),
+                                            new ScalarLiteral(TypedValue(base_value),
+                                                              TypeFactory::GetType(kInt, true))));
+
+    block->deleteTuples(predicate.get(), kTid, storage_manager_.get());    
+  }
+
   // Check if the two blocks are the same except block_id
   bool areTwoBlocksSame (block_id id1, block_id id2) {
     MutableBlockReference block1 = storage_manager_->getBlockMutable(id1, *relation_);
@@ -348,6 +362,9 @@ class RedoTest : public ::testing::Test {
       case LogRecord::LogRecordType::kINSERT_BATCH:
         redoInsert(bid, log.substr(Macros::kHEADER_LENGTH), true);
         break;
+      case LogRecord::LogRecordType::kDELETE:
+        redoDelete(bid, log.substr(Macros::kHEADER_LENGTH));
+        break;
       default:
         return;
     }
@@ -382,6 +399,8 @@ class RedoTest : public ::testing::Test {
     block->updateTupleInPlace(updated_values.get(), tup_id);
   }
 
+  // Redo an insert operation
+  // True batch means insert in batch, false otherwise
   void redoInsert(block_id bid, std::string payload, bool batch) {
     MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
     std::vector<TypedValue> values;
@@ -403,6 +422,15 @@ class RedoTest : public ::testing::Test {
     else {
       block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
     }
+  }
+
+  // Redo a delete operation
+  void redoDelete(block_id bid, std::string payload) {
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+    int index = sizeof(block_id);
+    tuple_id tup_id = Helper::strToInt(payload.substr(index, sizeof(tuple_id)));
+
+    block->deleteTupleAtPosition(tup_id);
   }
   
   std::unique_ptr<StorageManager> storage_manager_;
@@ -504,5 +532,46 @@ TEST_F(RedoTest, InsertTest) {
   storage_manager_->setLogStatus(true);
   log_manager->sendForceRequest();
 }
+
+TEST_F(RedoTest, DeleteTest) {
+  // Rebuild the block in a new block in order to compare with the old one
+  block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(old_block_id);
+  block_id new_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(new_block_id);
+  ASSERT_EQ(old_block_id + 1, new_block_id);
+
+  // Insert without log
+  storage_manager_->setLogStatus(false);
+  insertSampleTuplesInBatch(old_block_id, kTupleNumber);
+  insertSampleTuplesInBatch(new_block_id, kTupleNumber);
+
+  // Do deletion on old block
+  storage_manager_->setLogStatus(true);
+  deleteTuples(old_block_id, 1);
+  deleteTuples(old_block_id, 5);
+  deleteTuples(old_block_id, 3);
+
+  // Redo the deletion on the new block according to log
+  storage_manager_->setLogStatus(false);
+  LogManager *log_manager = storage_manager_->getLogManager();
+  std::string buffer(log_manager->getBuffer());
+  while (buffer.length() > 0) {
+    int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+    block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+    EXPECT_EQ(old_block_id, log_block_id);
+    
+    redo(new_block_id, buffer.substr(0, length));
+    buffer = buffer.substr(length);
+  }
+
+  EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
+  
+  // Clean up
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+  storage_manager_->deleteBlockOrBlobFile(old_block_id);
+  storage_manager_->setLogStatus(true);
+  log_manager->sendForceRequest();
+  }
 
 } // namespace quickstep
