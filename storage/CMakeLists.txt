@@ -1188,6 +1188,8 @@ target_link_libraries(Redo_unittest
                       glog
                       quickstep_catalog_CatalogAttribute
                       quickstep_catalog_CatalogRelation
+                      quickstep_catalog_CatalogRelationSchema
+                      quickstep_catalog_PartitionScheme
                       quickstep_expressions_predicate_ComparisonPredicate
                       quickstep_expressions_scalar_Scalar
                       quickstep_expressions_scalar_ScalarAttribute

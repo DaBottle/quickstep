@@ -11,6 +11,8 @@
 
 #include "catalog/CatalogAttribute.hpp"
 #include "catalog/CatalogRelation.hpp"
+#include "catalog/CatalogRelationSchema.hpp"
+#include "catalog/PartitionScheme.hpp"
 #include "expressions/predicate/ComparisonPredicate.hpp"
 #include "expressions/scalar/Scalar.hpp"
 #include "expressions/scalar/ScalarAttribute.hpp"
@@ -39,16 +41,19 @@
 
 namespace quickstep {
 
-class RedoTest : public ::testing::Test {
+// Add partition feature to the relation if parameter is true
+class RedoTest : public ::testing::TestWithParam<bool> {
  protected:
   static const relation_id kRelationId = 100;
   static const int kTupleNumber = 10;
-  static const int kMaxAttributeId = 3;
+  static const int kAttributeNumber = 5;
   static const TransactionId kTid = 5;
   static const int kMaxTupleNumber = 100;
+  static const int kPartitionNumber = 5;
 
   virtual void SetUp() {
     relation_.reset(new CatalogRelation(NULL, "TestRelation", kRelationId));
+    
     storage_manager_.reset(new StorageManager("relation"));
     storage_manager_->setLogStatus(true);
     bus_.Initialize();
@@ -57,23 +62,23 @@ class RedoTest : public ::testing::Test {
     // Add different kinds of attributes: int, double, char, varchar
     CatalogAttribute *int_attr = new CatalogAttribute(relation_.get(),
                                                       "int_attr",
-                                                      TypeFactory::GetType(kInt, true));
+                                                      TypeFactory::GetType(kInt, !GetParam()));
 
     relation_->addAttribute(int_attr);
 
     CatalogAttribute *double_attr = new CatalogAttribute(relation_.get(),
                                                          "double_attr",
-                                                         TypeFactory::GetType(kDouble, true));
+                                                         TypeFactory::GetType(kDouble, !GetParam()));
     relation_->addAttribute(double_attr);
 
     CatalogAttribute *char_attr = new CatalogAttribute(relation_.get(),
                                                               "char_attr",
-                                                              TypeFactory::GetType(kChar, 4, true));
+                                                              TypeFactory::GetType(kChar, 4, !GetParam()));
     relation_->addAttribute(char_attr);
 
     CatalogAttribute *varchar_attr = new CatalogAttribute(relation_.get(),
                                                         "varchar_attr",
-                                                        TypeFactory::GetType(kVarChar, 32, true));
+                                                        TypeFactory::GetType(kVarChar, 32, !GetParam()));
     relation_->addAttribute(varchar_attr);
     
     // Records the 'base_value' of a tuple used in createSampleTuple.
@@ -81,8 +86,11 @@ class RedoTest : public ::testing::Test {
                                                              "base_value",
                                                              TypeFactory::GetType(kInt, false));
     relation_->addAttribute(base_value_attr);
-    
+
     layout_.reset(StorageBlockLayout::GenerateDefaultLayout(*relation_, true));
+    if (GetParam()) {
+      relation_->setPartitionScheme(new HashPartitionScheme(kPartitionNumber, 0));
+    }
   }
 
   // Caller takes ownership of new heap-created Tuple.
@@ -90,7 +98,7 @@ class RedoTest : public ::testing::Test {
     std::vector<TypedValue> attrs;
 
     // int_attr
-    if (base_value % 8 == 0) {
+    if (!GetParam() && base_value % 8 == 0) {
       // Throw in a NULL integer for every eighth value.
       attrs.emplace_back(kInt);
     } else {
@@ -98,7 +106,7 @@ class RedoTest : public ::testing::Test {
     }
 
     // double_attr
-    if (base_value % 8 == 2) {
+    if (!GetParam() && base_value % 8 == 2) {
       // NULL very eighth value.
       attrs.emplace_back(kDouble);
     } else {
@@ -106,14 +114,14 @@ class RedoTest : public ::testing::Test {
     }
 
     // char_attr
-    if (base_value % 8 == 4) {
+    if (!GetParam() && base_value % 8 == 4) {
       // NULL very eighth value.
       attrs.emplace_back(CharType::InstanceNullable(4).makeNullValue());
     } else {
       std::ostringstream char_buffer;
       char_buffer << base_value;
       std::string string_literal(char_buffer.str());
-      attrs.emplace_back(CharType::InstanceNullable(4).makeValue(
+      attrs.emplace_back(CharType::InstanceNonNullable(4).makeValue(
           string_literal.c_str(),
           string_literal.size() > 3 ? 4
                                     : string_literal.size() + 1));
@@ -121,14 +129,14 @@ class RedoTest : public ::testing::Test {
     }
 
     // varchar_attr
-    if (base_value % 8 == 6) {
+    if (!GetParam() && base_value % 8 == 6) {
       // NULL very eighth value.
       attrs.emplace_back(VarCharType::InstanceNullable(32).makeNullValue());
     } else {
       std::ostringstream char_buffer;
       char_buffer << "Here are some numbers: " << base_value;
       std::string string_literal(char_buffer.str());
-      attrs.emplace_back(VarCharType::InstanceNullable(32).makeValue(
+      attrs.emplace_back(VarCharType::InstanceNonNullable(32).makeValue(
           string_literal.c_str(),
           string_literal.size() + 1));
       attrs.back().ensureNotReference();
@@ -226,7 +234,7 @@ class RedoTest : public ::testing::Test {
   // update the base tuple to a series of new values
   // base_value will remain unchanged
   // new_value of 0 means NULL for all non-base fields
-  inline StorageBlock::UpdateResult update(block_id bid, int base_value, int new_value) {
+  inline void update(block_id bid, int base_value, int new_value) {
     DEBUG_ASSERT(base_value >= 0);
     DEBUG_ASSERT(base_value < kTupleNumber);
 
@@ -237,7 +245,7 @@ class RedoTest : public ::testing::Test {
     std::unique_ptr<InsertDestination> relocation;
 
     assignments.reset(new std::unordered_map<attribute_id, std::unique_ptr<const Scalar>>());
-    if (new_value == 0) {
+    if (!GetParam() && new_value == 0) {
       assignments->emplace(0, std::make_unique<ScalarLiteral>(TypedValue(kInt),
                                                               TypeFactory::GetType(kInt, true)));
       assignments->emplace(1, std::make_unique<ScalarLiteral>(TypedValue(kDouble),
@@ -249,9 +257,9 @@ class RedoTest : public ::testing::Test {
     }
     else {
       assignments->emplace(0, std::make_unique<ScalarLiteral>(TypedValue(new_value),
-                                                              TypeFactory::GetType(kInt, true)));
+                                                              TypeFactory::GetType(kInt, !GetParam())));
       assignments->emplace(1, std::make_unique<ScalarLiteral>(TypedValue(static_cast<double> (0.25 * new_value)),
-                                                              TypeFactory::GetType(kDouble, true)));
+                                                              TypeFactory::GetType(kDouble, !GetParam())));
 
       std::ostringstream char_buffer;
       char_buffer << new_value;
@@ -260,7 +268,7 @@ class RedoTest : public ::testing::Test {
                                                               char_string.c_str(),
                                                               char_string.size() > 3 ? 4
                                                                 : char_string.size() + 1),
-                                                              TypeFactory::GetType(kChar, 4, true)));
+                                                              TypeFactory::GetType(kChar, 4, !GetParam())));
 
       std::ostringstream varchar_buffer;
       varchar_buffer << "Here are some numbers: " << new_value;
@@ -268,23 +276,32 @@ class RedoTest : public ::testing::Test {
       assignments->emplace(3, std::make_unique<ScalarLiteral>(VarCharType::InstanceNonNullable(32).makeValue(
                                                                           varchar_string.c_str(),
                                                                           varchar_string.size() + 1),
-                                                              TypeFactory::GetType(kVarChar, 32, true)));
+                                                              TypeFactory::GetType(kVarChar, 32, !GetParam())));
     }
 
     predicate.reset(new ComparisonPredicate(ComparisonFactory::GetComparison(ComparisonID::kEqual),
                                             new ScalarAttribute(*(relation_->getAttributeByName("base_value"))),
                                             new ScalarLiteral(TypedValue(base_value),
-                                                              TypeFactory::GetType(kInt, true))));
+                                                              TypeFactory::GetType(kInt, false))));
 
-    relocation.reset(new BlockPoolInsertDestination(storage_manager_.get(),
-                                                    relation_.get(),
-                                                    NULL,
-                                                    0,
-                                                    foreman_client_id_,
-                                                    &bus_));
+    if (GetParam()) {
+      relocation.reset(new PartitionAwareInsertDestination(storage_manager_.get(),
+                                                          relation_.get(),
+                                                          NULL,
+                                                          0,
+                                                          foreman_client_id_,
+                                                          &bus_));
+    }
+    else {  
+      relocation.reset(new BlockPoolInsertDestination(storage_manager_.get(),
+                                                      relation_.get(),
+                                                      NULL,
+                                                      0,
+                                                      foreman_client_id_,
+                                                      &bus_));
+    }
 
-    return block->update((*assignments.get()), predicate.get(), relocation.get(),
-                        kTid, storage_manager_.get());
+    block->update((*assignments.get()), predicate.get(), relocation.get(), kTid, storage_manager_.get());
   }
 
   inline void deleteTuples(block_id bid, int base_value) {
@@ -296,7 +313,7 @@ class RedoTest : public ::testing::Test {
     predicate.reset(new ComparisonPredicate(ComparisonFactory::GetComparison(ComparisonID::kEqual),
                                             new ScalarAttribute(*(relation_->getAttributeByName("base_value"))),
                                             new ScalarLiteral(TypedValue(base_value),
-                                                              TypeFactory::GetType(kInt, true))));
+                                                              TypeFactory::GetType(kInt, false))));
 
     block->deleteTuples(predicate.get(), kTid, storage_manager_.get());    
   }
@@ -450,8 +467,7 @@ class RedoTest : public ::testing::Test {
 }; // class RedoTest
 
 // Test if in-place update could be redo
-TEST_F(RedoTest, InPlaceUpdateTest) {
-  StorageBlock::UpdateResult result;
+TEST_P(RedoTest, UpdateTest) {
   // Rebuild the block in a new block in order to compare with the old one
   block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
   relation_->addBlock(old_block_id);
@@ -467,45 +483,60 @@ TEST_F(RedoTest, InPlaceUpdateTest) {
   storage_manager_->setLogStatus(true);
   // Update tuples in the original block
   // Update a tuple without NULL value involved
-  result = update(old_block_id, 1, 5);
-  EXPECT_TRUE(result.indices_consistent);
-  EXPECT_FALSE(result.relocation_destination_used);
-  // Update fields to NULL
-  result = update(old_block_id, 3, 0);
-  EXPECT_TRUE(result.indices_consistent);
-  EXPECT_FALSE(result.relocation_destination_used);
-  // Update fields from Null
-  result = update(old_block_id, 0, 1);
-  EXPECT_TRUE(result.indices_consistent);
-  EXPECT_FALSE(result.relocation_destination_used);
+  update(old_block_id, 1, 5);
+  // Update fields to NULL when no partition is involved
+  update(old_block_id, 3, 0);
+  // Update fields from Null when no partition is involved
+  update(old_block_id, 0, 1);
 
   // Rebuild the block in old_block_id+1 from log
   storage_manager_->setLogStatus(false);
   LogManager* log_manager = storage_manager_->getLogManager();
   std::string buffer(log_manager->getBuffer());
 
-  while (buffer.length() > 0) {    
-    // Get the log string from the buffer
-    int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
-    block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
-    EXPECT_EQ(old_block_id, log_block_id);
-    
-    // Redo the operation on another block
-    redo(new_block_id, buffer.substr(0, length));
-    buffer = buffer.substr(length);
+  if (GetParam()) {
+    while (buffer.length() > 0) {    
+      // Delete part
+      int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+      block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+      EXPECT_EQ(log_block_id, old_block_id);     
+      // Redo the operation on another block
+      redo(new_block_id, buffer.substr(0, length));
+      buffer = buffer.substr(length);
+
+      // Reinsert part
+      length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+      log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+      // Create a new block for reinsertion
+      block_id reinsert_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+      relation_->addBlock(reinsert_block_id);
+      redo(reinsert_block_id, buffer.substr(0, length));
+      EXPECT_TRUE(areTwoBlocksSame(log_block_id, reinsert_block_id));
+      buffer = buffer.substr(length);
+
+      storage_manager_->deleteBlockOrBlobFile(log_block_id);
+      storage_manager_->deleteBlockOrBlobFile(reinsert_block_id);
+    }
   }
-  
-  // Compare two blocks
+  else {
+    while (buffer.length() > 0) {    
+      // Get the log string from the buffer
+      int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+      block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+      EXPECT_EQ(old_block_id, log_block_id);
+      
+      // Redo the operation on another block
+      redo(new_block_id, buffer.substr(0, length));
+      buffer = buffer.substr(length);
+    }
+  }
+
   EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
-  
-  // Clean up
-  storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
-  storage_manager_->setLogStatus(true);
-  log_manager->sendForceRequest();
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
 }
 
-TEST_F(RedoTest, InsertTest) {
+TEST_P(RedoTest, InsertTest) {
   // Rebuild the block in a new block in order to compare with the old one
   block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
   relation_->addBlock(old_block_id);
@@ -534,15 +565,11 @@ TEST_F(RedoTest, InsertTest) {
 
   // Compare two blocks
   EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
-  
-  // Clean up
-  storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
-  storage_manager_->setLogStatus(true);
-  log_manager->sendForceRequest();
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
 }
 
-TEST_F(RedoTest, DeleteTest) {
+TEST_P(RedoTest, DeleteTest) {
   // Rebuild the block in a new block in order to compare with the old one
   block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
   relation_->addBlock(old_block_id);
@@ -575,15 +602,11 @@ TEST_F(RedoTest, DeleteTest) {
   }
 
   EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
-  
-  // Clean up
-  storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
-  storage_manager_->setLogStatus(true);
-  log_manager->sendForceRequest();
-  }
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+}
 
-TEST_F(RedoTest, RebuildTest) {
+TEST_P(RedoTest, RebuildTest) {
   // Rebuild the block in a new block in order to compare with the old one
   block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
   relation_->addBlock(old_block_id);
@@ -614,12 +637,10 @@ TEST_F(RedoTest, RebuildTest) {
   }
 
   EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
-
-  // Clean up
-  storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
-  storage_manager_->setLogStatus(true);
-  log_manager->sendForceRequest();
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
 }
+
+INSTANTIATE_TEST_CASE_P(WithOrWithoutPartition, RedoTest, ::testing::Bool());
 
 } // namespace quickstep

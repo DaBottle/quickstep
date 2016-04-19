@@ -514,6 +514,7 @@ StorageBlock::UpdateResult StorageBlock::update(
   UpdateResult retval;
   // TODO(chasseur): Be smarter and only update indexes that need to be updated.
   std::unique_ptr<TupleIdSequence> matches(getMatchesForPredicate(predicate));
+  LogManager *log_manager = storage_manager->getLogManager();
   
   // If nothing matches the predicate, return immediately.
   if (matches->empty()) {
@@ -570,7 +571,6 @@ StorageBlock::UpdateResult StorageBlock::update(
         }
 
         // Write update log
-        LogManager *log_manager = storage_manager->getLogManager();
         log_manager->logUpdate(tid, id_, *match_it, old_values.get(),
                               updated_values.get());
       }
@@ -610,7 +610,20 @@ StorageBlock::UpdateResult StorageBlock::update(
   retval.indices_consistent = all_indices_consistent_;
   retval.relocation_destination_used = false;
   if (!relocate_ids.empty()) {
-    // Delete relocated tuples.
+    // Delete relocated tuples. (Write log if needed)
+    if (storage_manager->needLog()) {
+      TupleIdSequence::const_iterator relocate_it = relocate_ids.begin();
+      
+      ValueAccessor *accessor = tuple_store_->createValueAccessor(&relocate_ids);
+      InvokeOnAnyValueAccessor (accessor, [&] (auto *accessor) -> void {
+        accessor->beginIteration();
+        while (accessor->next()) {
+          log_manager->logDelete(tid, id_, *relocate_it, accessor->getTuple());
+          relocate_it++;
+        }
+      });
+    }
+    
     if (tuple_store_->bulkDeleteTuples(&relocate_ids)) {
       rebuild_all = true;
     }
@@ -631,6 +644,10 @@ StorageBlock::UpdateResult StorageBlock::update(
         if (rebuild_all || (!tuple_store_->adHocInsertIsEfficient())) {
           // If we must rebuild anyway, we might as well use the fast insert path.
           if (tuple_store_->insertTupleInBatch(*copy_it)) {
+            // Log for insertion in the same block
+            if (storage_manager->needLog()) {
+              log_manager->logInsertInBatch(tid, id_, tuple_store_->numTuples() -1, &*copy_it);
+            }
             rebuild_all = true;
           } else {
             retval.relocation_destination_used = true;
@@ -653,6 +670,11 @@ StorageBlock::UpdateResult StorageBlock::update(
             break;
           }
 
+          // Log for insertion in the same block
+          if (storage_manager->needLog()) {
+            log_manager->logInsert(tid, id_, reinsert_result.inserted_id, &*copy_it);
+          }
+          
           if (reinsert_result.ids_mutated) {
             rebuild_all = true;
           } else {
@@ -667,6 +689,9 @@ StorageBlock::UpdateResult StorageBlock::update(
   // TODO(chasseur): Consider doing a partial rollback when an index rebuild
   // fails.
   if (rebuild_all) {
+    if (storage_manager->needLog()) {
+      log_manager->logRebuild(tid, id_, tuple_store_->createValueAccessor());
+    }
     tuple_store_->rebuild();
 
     // Rebuild indexes.
