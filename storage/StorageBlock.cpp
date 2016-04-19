@@ -952,6 +952,16 @@ void StorageBlock::deleteTupleAtPosition(const tuple_id tup_id) {
   tuple_store_->deleteTuple(tup_id);
 }
 
+bool StorageBlock::rebuild(const TransactionId tid,
+                           StorageManager *storage_manager) {
+    if (storage_manager->needLog()) {
+      LogManager *log_manager = storage_manager->getLogManager();
+      log_manager->logRebuild(tid, id_, tuple_store_->createValueAccessor());
+    }
+    tuple_store_->rebuild();
+    return rebuildIndexes(false);
+  }
+
 TupleStorageSubBlock* StorageBlock::CreateTupleStorageSubBlock(
     const CatalogRelationSchema &relation,
     const TupleStorageSubBlockDescription &description,

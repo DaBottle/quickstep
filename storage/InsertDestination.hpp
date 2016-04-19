@@ -198,8 +198,13 @@ class InsertDestination : public InsertDestinationInterface {
    *        which the client is finished using.
    * @param full If true, the client ran out of space when trying to insert
    *        into block. If false, all inserts were successful.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    **/
-  virtual void returnBlock(MutableBlockReference &&block, const bool full) = 0;
+  virtual void returnBlock(MutableBlockReference &&block,
+                           const bool full,
+                           const TransactionId tid,
+                           StorageManager *storage_manager) = 0;
 
   // TODO(chasseur): Once StorageManager and CatalogRelation are threadsafe, it
   // will be safe to use this without holding the mutex.
@@ -291,7 +296,10 @@ class AlwaysCreateBlockInsertDestination : public InsertDestination {
  protected:
   MutableBlockReference getBlockForInsertion() override;
 
-  void returnBlock(MutableBlockReference &&block, const bool full) override;
+  void returnBlock(MutableBlockReference &&block,
+                   const bool full,
+                   const TransactionId tid,
+                   StorageManager *storage_manager) override;
 
   MutableBlockReference createNewBlock() override;
 
@@ -339,7 +347,10 @@ class BlockPoolInsertDestination : public InsertDestination {
  protected:
   MutableBlockReference getBlockForInsertion() override;
 
-  void returnBlock(MutableBlockReference &&block, const bool full) override;
+  void returnBlock(MutableBlockReference &&block,
+                   const bool full,
+                   const TransactionId tid,
+                   StorageManager *storage_manager) override;
 
   void getPartiallyFilledBlocks(std::vector<MutableBlockReference> *partial_blocks) override;
 
@@ -457,7 +468,10 @@ class PartitionAwareInsertDestination : public InsertDestination {
    **/
   MutableBlockReference getBlockForInsertionInPartition(const partition_id part_id);
 
-  void returnBlock(MutableBlockReference &&block, const bool full) override;
+  void returnBlock(MutableBlockReference &&block,
+                   const bool full,
+                   const TransactionId tid,
+                   StorageManager *storage_manager) override;
 
   /**
    * @brief Release a block after done using it for insertion.
@@ -468,8 +482,14 @@ class PartitionAwareInsertDestination : public InsertDestination {
    * @param full If true, the client ran out of space when trying to insert
    *        into block. If false, all inserts were successful.
    * @param part_id The partition id into which we should return the block into.
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
    **/
-  void returnBlockInPartition(MutableBlockReference &&block, const bool full, const partition_id part_id);
+  void returnBlockInPartition(MutableBlockReference &&block,
+                              const bool full,
+                              const partition_id part_id,
+                              const TransactionId tid,
+                              StorageManager *storage_manager);
 
   MutableBlockReference createNewBlock() override;
   MutableBlockReference createNewBlockInPartition(const partition_id part_id);

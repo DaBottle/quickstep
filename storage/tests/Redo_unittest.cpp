@@ -50,6 +50,7 @@ class RedoTest : public ::testing::Test {
   virtual void SetUp() {
     relation_.reset(new CatalogRelation(NULL, "TestRelation", kRelationId));
     storage_manager_.reset(new StorageManager("relation"));
+    storage_manager_->setLogStatus(true);
     bus_.Initialize();
     foreman_client_id_ = bus_.Connect();
 
@@ -300,6 +301,11 @@ class RedoTest : public ::testing::Test {
     block->deleteTuples(predicate.get(), kTid, storage_manager_.get());    
   }
 
+  inline void rebuild(block_id bid) {
+    MutableBlockReference old_block = storage_manager_->getBlockMutable(bid, *relation_);
+    old_block->rebuild(kTid, storage_manager_.get());
+  }
+
   // Check if the two blocks are the same except block_id
   bool areTwoBlocksSame (block_id id1, block_id id2) {
     MutableBlockReference block1 = storage_manager_->getBlockMutable(id1, *relation_);
@@ -364,6 +370,9 @@ class RedoTest : public ::testing::Test {
         break;
       case LogRecord::LogRecordType::kDELETE:
         redoDelete(bid, log.substr(Macros::kHEADER_LENGTH));
+        break;
+      case LogRecord::LogRecordType::kREBUILD:
+        rebuild(bid);
         break;
       default:
         return;
@@ -573,5 +582,44 @@ TEST_F(RedoTest, DeleteTest) {
   storage_manager_->setLogStatus(true);
   log_manager->sendForceRequest();
   }
+
+TEST_F(RedoTest, RebuildTest) {
+  // Rebuild the block in a new block in order to compare with the old one
+  block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(old_block_id);
+  block_id new_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(new_block_id);
+  ASSERT_EQ(old_block_id + 1, new_block_id);
+
+  // Insert without log
+  storage_manager_->setLogStatus(false);
+  insertSampleTuplesInBatch(old_block_id, kTupleNumber);
+  insertSampleTuplesInBatch(new_block_id, kTupleNumber);
+
+  // Rebuild the old block
+  storage_manager_->setLogStatus(true);
+  rebuild(old_block_id);
+
+  // Redo the rebuild
+  storage_manager_->setLogStatus(false);
+  LogManager *log_manager = storage_manager_->getLogManager();
+  std::string buffer(log_manager->getBuffer());
+  while (buffer.length() > 0) {
+    int length = Helper::strToInt(buffer.substr(Macros::kLENGTH_START, sizeof(int)));
+    block_id log_block_id = Helper::strToId(buffer.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+    EXPECT_EQ(old_block_id, log_block_id);
+    
+    redo(new_block_id, buffer.substr(0, length));
+    buffer = buffer.substr(length);
+  }
+
+  EXPECT_TRUE(areTwoBlocksSame(old_block_id, new_block_id));
+
+  // Clean up
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+  storage_manager_->deleteBlockOrBlobFile(old_block_id);
+  storage_manager_->setLogStatus(true);
+  log_manager->sendForceRequest();
+}
 
 } // namespace quickstep

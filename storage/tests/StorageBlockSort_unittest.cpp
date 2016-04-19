@@ -108,7 +108,7 @@ class StorageBlockSortTest : public ::testing::Test {
       block->insertTupleInBatch(*tuple, kTid, storage_manager_.get());
     }
 
-    block->rebuild();
+    block->rebuild(kTid, storage_manager_.get());
   }
 
   inline void addAttributeValue(std::vector<TypedValue> *values, int value) {

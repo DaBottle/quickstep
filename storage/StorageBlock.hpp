@@ -558,13 +558,13 @@ class StorageBlock : public StorageBlockBase {
    *       consistent, and all tuples can be accessed via
    *       getTupleStorageSubBlock().
    *
+   * @param tid The id of the transaction that performs this method.
+   * @param storage_manager A pointer to the storage manager.
+   *
    * @return True if rebuilding succeeded, false if one of the IndexSubBlocks
    *         ran out of space.
    **/
-  bool rebuild() {
-    tuple_store_->rebuild();
-    return rebuildIndexes(false);
-  }
+  bool rebuild(const TransactionId tid, StorageManager *storage_manager);
 
  private:
   static TupleStorageSubBlock* CreateTupleStorageSubBlock(

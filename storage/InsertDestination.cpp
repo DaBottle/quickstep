@@ -137,15 +137,15 @@ void InsertDestination::insertTuple(const Tuple &tuple,
 
   try {
     while (!output_block->insertTuple(tuple, tid, storage_manager)) {
-      returnBlock(std::move(output_block), true);
+      returnBlock(std::move(output_block), true, tid, storage_manager);
       output_block = getBlockForInsertion();
     }
   } catch (...) {
-    returnBlock(std::move(output_block), false);
+    returnBlock(std::move(output_block), false, tid, storage_manager);
     throw;
   }
 
-  returnBlock(std::move(output_block), false);
+  returnBlock(std::move(output_block), false, tid, storage_manager);
 }
 
 void InsertDestination::insertTupleInBatch(const Tuple &tuple,
@@ -155,15 +155,15 @@ void InsertDestination::insertTupleInBatch(const Tuple &tuple,
 
   try {
     while (!output_block->insertTupleInBatch(tuple, tid, storage_manager)) {
-      returnBlock(std::move(output_block), true);
+      returnBlock(std::move(output_block), true, tid, storage_manager);
       output_block = getBlockForInsertion();
     }
   } catch (...) {
-    returnBlock(std::move(output_block), false);
+    returnBlock(std::move(output_block), false, tid, storage_manager);
     throw;
   }
 
-  returnBlock(std::move(output_block), false);
+  returnBlock(std::move(output_block), false, tid, storage_manager);
 }
 
 void InsertDestination::bulkInsertTuples(ValueAccessor *accessor,
@@ -179,12 +179,14 @@ void InsertDestination::bulkInsertTuples(ValueAccessor *accessor,
       // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
       if (output_block->bulkInsertTuples(accessor, tid, storage_manager) == 0) {
         // output_block is full.
-        this->returnBlock(std::move(output_block), true);
+        this->returnBlock(std::move(output_block), true, tid, storage_manager);
       } else {
         // Bulk insert into output_block was successful. output_block
         // will be rebuilt when there won't be any more insertions to it.
         this->returnBlock(std::move(output_block),
-                          always_mark_full || !accessor->iterationFinished());
+                          always_mark_full || !accessor->iterationFinished(),
+                          tid,
+                          storage_manager);
       }
     }
   });
@@ -209,12 +211,14 @@ void InsertDestination::bulkInsertTuplesWithRemappedAttributes(
               tid,
               storage_manager) == 0) {
         // output_block is full.
-        this->returnBlock(std::move(output_block), true);
+        this->returnBlock(std::move(output_block), true, tid, storage_manager);
       } else {
         // Bulk insert into output_block was successful. output_block
         // will be rebuilt when there won't be any more insertions to it.
         this->returnBlock(std::move(output_block),
-                          always_mark_full || !accessor->iterationFinished());
+                          always_mark_full || !accessor->iterationFinished(),
+                          tid,
+                          storage_manager);
       }
     }
   });
@@ -232,11 +236,11 @@ void InsertDestination::insertTuplesFromVector(std::vector<Tuple>::const_iterato
   for (; begin != end; ++begin) {
     // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
     while (!dest_block->insertTupleInBatch(*begin, tid, storage_manager)) {
-      returnBlock(std::move(dest_block), true);
+      returnBlock(std::move(dest_block), true, tid, storage_manager);
       dest_block = getBlockForInsertion();
     }
   }
-  returnBlock(std::move(dest_block), false);
+  returnBlock(std::move(dest_block), false, tid, storage_manager);
 }
 
 MutableBlockReference AlwaysCreateBlockInsertDestination::createNewBlock() {
@@ -250,12 +254,15 @@ MutableBlockReference AlwaysCreateBlockInsertDestination::getBlockForInsertion()
   return createNewBlock();
 }
 
-void AlwaysCreateBlockInsertDestination::returnBlock(MutableBlockReference &&block, const bool full) {
+void AlwaysCreateBlockInsertDestination::returnBlock(MutableBlockReference &&block,
+                                                     const bool full,
+                                                     const TransactionId tid,
+                                                     StorageManager *storage_manager) {
   {
     SpinMutexLock lock(mutex_);
     returned_block_ids_.push_back(block->getID());
   }
-  if (!block->rebuild()) {
+  if (!block->rebuild(tid, storage_manager)) {
     LOG_WARNING("Rebuilding of StorageBlock with ID: " << block->getID() <<
                 "invalidated one or more IndexSubBlocks.");
   }
@@ -306,7 +313,10 @@ MutableBlockReference BlockPoolInsertDestination::getBlockForInsertion() {
   }
 }
 
-void BlockPoolInsertDestination::returnBlock(MutableBlockReference &&block, const bool full) {
+void BlockPoolInsertDestination::returnBlock(MutableBlockReference &&block,
+                                             const bool full,
+                                             TransactionId tid,
+                                             StorageManager *storage_manager) {
   {
     SpinMutexLock lock(mutex_);
     if (full) {
@@ -318,7 +328,7 @@ void BlockPoolInsertDestination::returnBlock(MutableBlockReference &&block, cons
   }
   DEBUG_ASSERT(full);
   // If the block is full, rebuild before pipelining it.
-  if (!block->rebuild()) {
+  if (!block->rebuild(tid, storage_manager)) {
     LOG_WARNING("Rebuilding of StorageBlock with ID: " << block->getID() <<
                 "invalidated one or more IndexSubBlocks.");
   }
@@ -417,16 +427,16 @@ void PartitionAwareInsertDestination::insertTuple(const Tuple &tuple,
 
   try {
     while (!output_block->insertTuple(tuple, tid, storage_manager)) {
-      returnBlockInPartition(std::move(output_block), true, part_id);
+      returnBlockInPartition(std::move(output_block), true, part_id, tid, storage_manager);
       output_block = getBlockForInsertionInPartition(part_id);
     }
   }
   catch (...) {
-    returnBlockInPartition(std::move(output_block), false, part_id);
+    returnBlockInPartition(std::move(output_block), false, part_id, tid, storage_manager);
     throw;
   }
 
-  returnBlockInPartition(std::move(output_block), false, part_id);
+  returnBlockInPartition(std::move(output_block), false, part_id, tid, storage_manager);
 }
 
 void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple,
@@ -440,16 +450,16 @@ void PartitionAwareInsertDestination::insertTupleInBatch(const Tuple &tuple,
 
   try {
     while (!output_block->insertTupleInBatch(tuple, tid, storage_manager)) {
-      returnBlockInPartition(std::move(output_block), true, part_id);
+      returnBlockInPartition(std::move(output_block), true, part_id, tid, storage_manager);
       output_block = getBlockForInsertionInPartition(part_id);
     }
   }
   catch (...) {
-    returnBlockInPartition(std::move(output_block), false, part_id);
+    returnBlockInPartition(std::move(output_block), false, part_id, tid, storage_manager);
     throw;
   }
 
-  returnBlockInPartition(std::move(output_block), false, part_id);
+  returnBlockInPartition(std::move(output_block), false, part_id, tid, storage_manager);
 }
 
 void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor,
@@ -493,13 +503,15 @@ void PartitionAwareInsertDestination::bulkInsertTuples(ValueAccessor *accessor,
       while (!adapter[partition]->iterationFinished()) {
         MutableBlockReference output_block = this->getBlockForInsertionInPartition(partition);
         if (output_block->bulkInsertTuples(adapter[partition].get(), tid, storage_manager) == 0) {
-          this->returnBlockInPartition(std::move(output_block), true, partition);
+          this->returnBlockInPartition(std::move(output_block), true, partition, tid, storage_manager);
         } else {
           // Bulk insert into output_block was successful. output_block
           // will be rebuilt when there won't be any more insertions to it.
           this->returnBlockInPartition(std::move(output_block),
                                        always_mark_full || !adapter[partition]->iterationFinished(),
-                                       partition);
+                                       partition,
+                                       tid,
+                                       storage_manager);
         }
       }
     }
@@ -553,13 +565,15 @@ void PartitionAwareInsertDestination::bulkInsertTuplesWithRemappedAttributes(
                                                                  adapter[partition].get(),
                                                                  tid,
                                                                  storage_manager) == 0) {
-          this->returnBlockInPartition(std::move(output_block), true, partition);
+          this->returnBlockInPartition(std::move(output_block), true, partition, tid, storage_manager);
         } else {
           // Bulk insert into output_block was successful. output_block
           // will be rebuilt when there won't be any more insertions to it.
           this->returnBlockInPartition(std::move(output_block),
                                        always_mark_full || !adapter[partition]->iterationFinished(),
-                                       partition);
+                                       partition,
+                                       tid,
+                                       storage_manager);
         }
       }
     }
@@ -580,10 +594,10 @@ void PartitionAwareInsertDestination::insertTuplesFromVector(std::vector<Tuple>:
     MutableBlockReference dest_block = getBlockForInsertionInPartition(part_id);
     // FIXME(chasseur): Deal with TupleTooLargeForBlock exception.
     while (!dest_block->insertTupleInBatch(*begin, tid, storage_manager)) {
-      returnBlockInPartition(std::move(dest_block), true, part_id);
+      returnBlockInPartition(std::move(dest_block), true, part_id, tid, storage_manager);
       dest_block = getBlockForInsertionInPartition(part_id);
     }
-    returnBlockInPartition(std::move(dest_block), false, part_id);
+    returnBlockInPartition(std::move(dest_block), false, part_id, tid, storage_manager);
   }
 }
 
@@ -610,13 +624,18 @@ MutableBlockReference PartitionAwareInsertDestination::getBlockForInsertionInPar
   }
 }
 
-void PartitionAwareInsertDestination::returnBlock(MutableBlockReference &&block, const bool full) {
+void PartitionAwareInsertDestination::returnBlock(MutableBlockReference &&block,
+                                                  const bool full,
+                                                  const TransactionId tid,
+                                                  StorageManager *storage_manager) {
   FATAL_ERROR("PartitionAwareInsertDestination::returnBlock needs a partition id as the third argument.");
 }
 
 void PartitionAwareInsertDestination::returnBlockInPartition(MutableBlockReference &&block,
                                                              const bool full,
-                                                             const partition_id part_id) {
+                                                             const partition_id part_id,
+                                                             const TransactionId tid,
+                                                             StorageManager *storage_manager) {
   {
     DEBUG_ASSERT(part_id >= 0 && part_id < relation_->getPartitionScheme().getNumPartitions());
     SpinMutexLock lock(mutexes_for_partition_[part_id]);
@@ -629,7 +648,7 @@ void PartitionAwareInsertDestination::returnBlockInPartition(MutableBlockReferen
   }
   DEBUG_ASSERT(full);
   // If the block is full, rebuild before pipelining it.
-  if (!block->rebuild()) {
+  if (!block->rebuild(tid, storage_manager)) {
     LOG_WARNING("Rebuilding of StorageBlock with ID: " << block->getID()
                                                        << "invalidated one or more IndexSubBlocks.");
   }
