@@ -1304,3 +1304,41 @@ if (QUICKSTEP_HAVE_LIBNUMA)
                         ${LIBNUMA_LIBRARY})
 endif()
 add_test(StorageManager_unittest StorageManager_unittest)
+
+add_executable(Undo_unittest
+               "${CMAKE_CURRENT_SOURCE_DIR}/tests/Undo_unittest.cpp")
+target_link_libraries(Undo_unittest
+                      gtest
+                      gtest_main
+                      glog
+                      quickstep_catalog_CatalogAttribute
+                      quickstep_catalog_CatalogRelation
+                      quickstep_catalog_CatalogRelationSchema
+                      quickstep_catalog_PartitionScheme
+                      quickstep_expressions_predicate_ComparisonPredicate
+                      quickstep_expressions_scalar_Scalar
+                      quickstep_expressions_scalar_ScalarAttribute
+                      quickstep_expressions_scalar_ScalarLiteral
+                      quickstep_log_Helper
+                      quickstep_log_LogManager
+                      quickstep_log_LogRecord
+                      quickstep_log_Macros
+                      quickstep_storage_InsertDestination
+                      quickstep_storage_StorageBlockLayout
+                      quickstep_storage_StorageManager
+                      quickstep_storage_ValueAccessor
+                      quickstep_storage_ValueAccessorUtil
+                      quickstep_types_CharType
+                      quickstep_types_DoubleType
+                      quickstep_types_FloatType
+                      quickstep_types_IntType
+                      quickstep_types_LongType
+                      quickstep_types_TypeID
+                      quickstep_types_VarCharType
+                      quickstep_types_containers_ColumnVector
+                      quickstep_types_containers_Tuple
+                      quickstep_types_operations_comparisons_ComparisonFactory
+                      quickstep_types_operations_comparisons_ComparisonID
+                      tmb
+                      ${LIBS})
+add_test(Undo_unittest Undo_unittest)
