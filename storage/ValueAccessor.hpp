@@ -122,6 +122,15 @@ class ValueAccessor {
   virtual void beginIterationVirtual() = 0;
 
   /**
+   * @brief Start statefully iterating over tuples reversely from this
+   *        ValueAccessor.
+   * @note Conceptually, this method sets the "position" of the ValueAccessor
+   *       to the end of the last tuple. previousVirtual()/previous() should be
+   *       called before attempting to read values.
+   **/
+  virtual void beginIterationReverseVirtual() = 0;
+
+  /**
    * @brief Determine whether the stateful iteration over tuples in this
    *        ValueAccessor is finished (i.e. there are no more tuples to iterate
    *        over).
@@ -143,10 +152,13 @@ class ValueAccessor {
   virtual bool nextVirtual() = 0;
 
   /**
-   * @brief Rewind stateful iteration by one tuple (i.e. undo the last call to
-   *        nextVirtual()/next()).
+   * @brief Rewind stateful iteration to the previous tuple from this
+   *        ValueAccessor.
+   *
+   * @return true if rewound to another tuple, false if there are no more
+   *         tuples
    **/
-  virtual void previousVirtual() = 0;
+  virtual bool previousVirtual() = 0;
 
   /**
    * @brief Get the current absolute position of stateful iteration on this
@@ -342,6 +354,10 @@ class TupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     current_position_ = id_sequence_.before_begin();
   }
 
+  inline void beginIterationReverse() {
+    current_position_ = id_sequence_.end();
+  }
+
   inline bool iterationFinished() const {
     TupleIdSequence::const_iterator next_position = current_position_;
     ++next_position;
@@ -354,8 +370,9 @@ class TupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     return current_position_ != id_sequence_.end();
   }
 
-  inline void previous() {
+  inline bool previous() {
     --current_position_;
+    return current_position_ != id_sequence_.before_begin();
   }
 
   inline tuple_id getCurrentPosition() const {
@@ -420,6 +437,10 @@ class TupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     beginIteration();
   }
 
+  void beginIterationReverseVirtual() override {
+    beginIterationReverse();
+  }
+
   bool iterationFinishedVirtual() const override {
     return iterationFinished();
   }
@@ -428,8 +449,8 @@ class TupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     return next();
   }
 
-  void previousVirtual() override {
-    previous();
+  bool previousVirtual() override {
+    return previous();
   }
 
   tuple_id getCurrentPositionVirtual() const override {
@@ -528,6 +549,10 @@ class OrderedTupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     current_position_ = std::numeric_limits<OrderedTupleIdSequence::size_type>::max();
   }
 
+  inline void beginIterationReverse() {
+    current_position_ = id_sequence_.size();
+  }
+
   inline bool iterationFinished() const {
     return current_position_ + 1 >= id_sequence_.size();
   }
@@ -537,8 +562,9 @@ class OrderedTupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     return current_position_ != id_sequence_.size();
   }
 
-  inline void previous() {
+  inline bool previous() {
     --current_position_;
+    return current_position_ != std::numeric_limits<OrderedTupleIdSequence::size_type>::max();
   }
 
   inline tuple_id getCurrentPosition() const {
@@ -608,6 +634,10 @@ class OrderedTupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     beginIteration();
   }
 
+  void beginIterationReverseVirtual() override {
+    beginIterationReverse();
+  }
+
   bool iterationFinishedVirtual() const override {
     return iterationFinished();
   }
@@ -616,8 +646,8 @@ class OrderedTupleIdSequenceAdapterValueAccessor : public ValueAccessor {
     return next();
   }
 
-  void previousVirtual() override {
-    previous();
+  bool previousVirtual() override {
+    return previous();
   }
 
   tuple_id getCurrentPositionVirtual() const override {
@@ -707,6 +737,10 @@ class PackedTupleStorageSubBlockValueAccessor : public ValueAccessor {
     current_tuple_ = -1;
   }
 
+  inline void beginIterationReverse() {
+    current_tuple_ = helper_.numPackedTuples();
+  }
+
   inline bool iterationFinished() const {
     return current_tuple_ + 1 >= helper_.numPackedTuples();
   }
@@ -716,8 +750,9 @@ class PackedTupleStorageSubBlockValueAccessor : public ValueAccessor {
     return (current_tuple_ < helper_.numPackedTuples());
   }
 
-  inline void previous() {
+  inline bool previous() {
     --current_tuple_;
+    return current_tuple_ >= 0;
   }
 
   inline tuple_id getCurrentPosition() const {
@@ -813,6 +848,10 @@ class PackedTupleStorageSubBlockValueAccessor : public ValueAccessor {
     beginIteration();
   }
 
+  void beginIterationReverseVirtual() override {
+    beginIterationReverse();
+  }
+
   bool iterationFinishedVirtual() const override {
     return iterationFinished();
   }
@@ -821,8 +860,8 @@ class PackedTupleStorageSubBlockValueAccessor : public ValueAccessor {
     return next();
   }
 
-  void previousVirtual() override {
-    previous();
+  bool previousVirtual() override {
+    return previous();
   }
 
   tuple_id getCurrentPositionVirtual() const override {

@@ -61,6 +61,10 @@ class SplitRowStoreValueAccessor : public ValueAccessor {
     current_position_ = std::numeric_limits<std::size_t>::max();
   }
 
+  inline void beginIterationReverse() {
+    current_position_ = max_tid_ + 1;
+  }
+
   inline bool iterationFinished() const {
     return (current_position_ == std::numeric_limits<std::size_t>::max())
            ? (num_tuples_ == 0)
@@ -76,11 +80,14 @@ class SplitRowStoreValueAccessor : public ValueAccessor {
     return current_position_ <= static_cast<std::size_t>(max_tid_);
   }
 
-  inline void previous() {
+  inline bool previous() {
     current_position_ = occupancy_bitmap_.lastOne(current_position_);
     if (current_position_ == occupancy_bitmap_.size()) {
       current_position_ = std::numeric_limits<std::size_t>::max();
+      return false;
     }
+
+    return true;
   }
 
   inline tuple_id getCurrentPosition() const {
@@ -240,6 +247,10 @@ class SplitRowStoreValueAccessor : public ValueAccessor {
     beginIteration();
   }
 
+  void beginIterationReverseVirtual() override {
+    beginIterationReverse();
+  }
+
   bool iterationFinishedVirtual() const override {
     return iterationFinished();
   }
@@ -248,8 +259,8 @@ class SplitRowStoreValueAccessor : public ValueAccessor {
     return next();
   }
 
-  void previousVirtual() override {
-    previous();
+  bool previousVirtual() override {
+    return previous();
   }
 
   tuple_id getCurrentPositionVirtual() const override {

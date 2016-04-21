@@ -94,6 +94,10 @@ class ColumnVectorsValueAccessor : public ValueAccessor {
     current_position_ = std::numeric_limits<std::size_t>::max();
   }
 
+  inline void beginIterationReverse() {
+    current_position_ = column_length_;
+  }
+
   inline bool iterationFinished() const {
     return current_position_ + 1 >= column_length_;
   }
@@ -103,8 +107,9 @@ class ColumnVectorsValueAccessor : public ValueAccessor {
     return current_position_ < column_length_;
   }
 
-  inline void previous() {
+  inline bool previous() {
     --current_position_;
+    return current_position_ != std::numeric_limits<std::size_t>::max();
   }
 
   inline tuple_id getCurrentPosition() const {
@@ -208,6 +213,10 @@ class ColumnVectorsValueAccessor : public ValueAccessor {
     beginIteration();
   }
 
+  void beginIterationReverseVirtual() override {
+    beginIterationReverse();
+  }
+
   bool iterationFinishedVirtual() const override {
     return iterationFinished();
   }
@@ -216,8 +225,8 @@ class ColumnVectorsValueAccessor : public ValueAccessor {
     return next();
   }
 
-  void previousVirtual() override {
-    previous();
+  bool previousVirtual() override {
+    return previous();
   }
 
   tuple_id getCurrentPositionVirtual() const override {
