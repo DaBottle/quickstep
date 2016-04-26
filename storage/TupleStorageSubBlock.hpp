@@ -223,6 +223,18 @@ class TupleStorageSubBlock {
   virtual bool insertTupleInBatch(const Tuple &tuple) = 0;
 
   /**
+   * @brief Insert a tuple into a given position.
+   * @note This method is designed for undo a deletion, so that it should only
+   *       be called by the recovery manager. Since it is an updo operation, it
+   *       should always succeed.
+   *
+   * @param tuple The tuple to insert, whose values must be in the correct
+   *        order.
+   * @param tup_id The position for the given tuple to insert into.
+   */
+  virtual void insertTupleAtPosition(const Tuple &tuple, const tuple_id position) = 0;
+
+  /**
    * @brief Insert as many tuples as possible from a ValueAccessor (all of the
    *        tuples accessible or as many as will fit in this
    *        TupleStorageSubBlock) as a single batch.

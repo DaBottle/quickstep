@@ -59,6 +59,22 @@ namespace quickstep {
 
 QUICKSTEP_REGISTER_TUPLE_STORE(CompressedPackedRowStoreTupleStorageSubBlock, COMPRESSED_PACKED_ROW_STORE);
 
+namespace {
+
+// Very simple helper function to truncate an integral (either INT or LONG) in
+// 'value' down to a code. Depending on the actual code length needed, the
+// returned code may be further truncated down to 8 or 16 bits.
+inline uint32_t TruncateIntegralValueToCode(const TypedValue &value,
+                                            const bool value_is_long) {
+  if (value_is_long) {
+    return value.getLiteral<std::int64_t>();
+  } else {
+    return value.getLiteral<int>();
+  }
+}
+
+}  // namespace
+
 CompressedPackedRowStoreTupleStorageSubBlock::CompressedPackedRowStoreTupleStorageSubBlock(
     const CatalogRelationSchema &relation,
     const TupleStorageSubBlockDescription &description,
@@ -234,6 +250,92 @@ ValueAccessor* CompressedPackedRowStoreTupleStorageSubBlock::createValueAccessor
         base_accessor,
         *sequence);
   }
+}
+
+void CompressedPackedRowStoreTupleStorageSubBlock::insertTupleAtPosition(
+    const Tuple &tuple,
+    const tuple_id position) {
+  DEBUG_ASSERT(position <= *static_cast<const tuple_id*>(sub_block_memory_));
+  
+  if (position != *static_cast<const tuple_id*>(sub_block_memory_)) {
+    // Shift the tuples backward to make space for this tuple
+    memmove(static_cast<char*>(tuple_storage_) + (position + 1) * tuple_length_bytes_,
+            static_cast<const char*>(tuple_storage_) + position * tuple_length_bytes_,
+            (*static_cast<const tuple_id*>(sub_block_memory_) - position) * tuple_length_bytes_);
+    if (null_bitmap_.get() != nullptr) {
+      null_bitmap_->shiftTailBackward(position * num_uncompressed_attributes_with_nulls_,
+                                      num_uncompressed_attributes_with_nulls_);
+    }
+  }
+
+  char *base_addr = static_cast<char*>(tuple_storage_) // Start of actual tuple-storage region.
+                    + position * tuple_length_bytes_;  // prior tuples.
+
+  Tuple::const_iterator value_it = tuple.begin();
+  CatalogRelationSchema::const_iterator attr_it = relation_.begin();
+
+  while (value_it != tuple.end()) {
+    // Attribute is dictionary-compressed
+    if (dictionary_coded_attributes_[attr_it->getID()]) {
+      CompressionDictionary *dict = static_cast<CompressionDictionary*>((dictionaries_.find(attr_it->getID()))->second);
+      switch (compression_info_.attribute_size(attr_it->getID())) {
+        case 1:
+          *reinterpret_cast<uint8_t*>(base_addr)
+              = dict->getCodeForTypedValue(*value_it, attr_it->getType());
+          break;
+        case 2:
+          *reinterpret_cast<uint16_t*>(base_addr)
+              = dict->getCodeForTypedValue(*value_it, attr_it->getType());
+          break;
+        case 4:
+          *reinterpret_cast<uint32_t*>(base_addr)
+              = dict->getCodeForTypedValue(*value_it, attr_it->getType());
+          break;
+        default:
+          FATAL_ERROR("Dictionary-compressed type had non power-of-two length in "
+                      "CompressedBlockBuilder::buildCompressedPackedRowStoreTupleStorageSubBlock()");
+      }
+    } else if (compression_info_.attribute_size(attr_it->getID())
+                 != attr_it->getType().maximumByteLength()) {
+      // Attribute is compressed by truncation
+      switch (compression_info_.attribute_size(attr_it->getID())) {
+        case 1:
+          *reinterpret_cast<uint8_t*>(base_addr)
+              = TruncateIntegralValueToCode(*value_it,
+                                            attr_it->getType().getTypeID() == kLong);
+          break;
+        case 2:
+          *reinterpret_cast<uint16_t*>(base_addr)
+              = TruncateIntegralValueToCode(*value_it,
+                                            attr_it->getType().getTypeID() == kLong);
+          break;
+        case 4:
+          *reinterpret_cast<uint32_t*>(base_addr)
+              = TruncateIntegralValueToCode(*value_it,
+                                            attr_it->getType().getTypeID() == kLong);
+          break;
+        default:
+          FATAL_ERROR("Truncation-compressed type had non power-of-two length in "
+                      "CompressedBlockBuilder::buildCompressedPackedRowStoreupleStorageSubBlock()");
+      }
+    } else {
+      // Attribute is uncompressed
+      if (tuple.getAttributeValue(attr_it->getID()).isNull()) {
+        null_bitmap_->setBit(position * num_uncompressed_attributes_with_nulls_
+                                + null_bitmap_attribute_offsets_[attr_it->getID()],
+                            true);
+      } else {
+        value_it->copyInto(base_addr);
+      }
+    }
+
+    base_addr += compression_info_.attribute_size(attr_it->getID());
+
+    ++value_it;
+    ++attr_it;
+  }
+
+  ++(*static_cast<tuple_id*>(sub_block_memory_));
 }
 
 bool CompressedPackedRowStoreTupleStorageSubBlock::deleteTuple(const tuple_id tuple) {

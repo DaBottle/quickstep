@@ -147,6 +147,9 @@ class SplitRowStoreTupleStorageSubBlock: public TupleStorageSubBlock {
     return (result.inserted_id >= 0);
   }
 
+  void insertTupleAtPosition(const Tuple &tuple,
+                             const tuple_id position) override;
+
   tuple_id bulkInsertTuples(ValueAccessor *accessor) override;
 
   tuple_id bulkInsertTuplesWithRemappedAttributes(
@@ -209,7 +212,7 @@ class SplitRowStoreTupleStorageSubBlock: public TupleStorageSubBlock {
   }
 
   template <bool nullable_attrs, bool variable_length_attrs>
-  InsertResult insertTupleImpl(const Tuple &tuple);
+  InsertResult insertTupleImpl(const Tuple &tuple, int position = -1);
 
   Header *header_;
 

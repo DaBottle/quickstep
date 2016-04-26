@@ -379,7 +379,9 @@ class UndoTest : public ::testing::TestWithParam<bool> {
       case LogRecord::LogRecordType::kINSERT:
       case LogRecord::LogRecordType::kINSERT_BATCH:
         undoInsert(bid, log.substr(Macros::kHEADER_LENGTH));
-        break;        
+        break;
+      case LogRecord::LogRecordType::kDELETE:
+        undoDelete(bid, log.substr(Macros::kHEADER_LENGTH));
       default:
         return;
     }
@@ -392,6 +394,29 @@ class UndoTest : public ::testing::TestWithParam<bool> {
     tuple_id tup_id = Helper::strToInt(payload.substr(index, sizeof(tuple_id)));
 
     block->deleteTupleAtPosition(tup_id);
+  }
+
+  // Undo a delete operation
+  void undoDelete(block_id bid, std::string payload) {
+    MutableBlockReference block = storage_manager_->getBlockMutable(bid, *relation_);
+    std::vector<TypedValue> values;
+    int length = payload.length();
+    int index = sizeof(block_id);
+
+    // Find position
+    tuple_id position = Helper::strToInt(payload.substr(index, sizeof(tuple_id)));
+    index += sizeof(tuple_id);
+
+    // Reconstruct the deleted tuple
+    while (index < length) {
+      TypedValue value = Helper::strToValue(payload.substr(index));
+      values.push_back(value);
+      index += Helper::valueLength(value);
+    }
+    EXPECT_EQ(index, length);
+    Tuple *tuple = new Tuple(std::move(values));
+
+    block->insertTupleAtPosition(*tuple, position);
   }
 
   std::unique_ptr<StorageManager> storage_manager_;
@@ -427,6 +452,61 @@ TEST_P(UndoTest, InsertTest) {
   bulkInsertSampleTuples(new_block_id, kTupleNumber, false);
   bulkInsertSampleTuples(new_block_id, kTupleNumber, true);
 
+  // Undo the operation from the log
+  LogManager *log_manager = storage_manager_->getLogManager();
+  LSN prev_LSN = log_manager->getPrevLSN();
+  std::string buffer(log_manager->getBuffer());
+
+  // Undo the operation from the latest log
+  while (prev_LSN != 0) {
+    std::string log_record = buffer.substr(prev_LSN - 1);
+    block_id log_block_id = Helper::strToId(log_record.substr(Macros::kHEADER_LENGTH, sizeof(block_id)));
+    EXPECT_EQ(old_block_id, log_block_id);
+    undo(new_block_id, log_record);
+
+    // Update remaining log records and prev LSN
+    buffer = buffer.substr(0, prev_LSN - 1);
+    prev_LSN = Helper::strToId(log_record.substr(Macros::kPREV_LSN_START, sizeof(LSN)));
+  }
+  // Compare two blocks
+  EXPECT_TRUE(areTwoBlocksSame(target_block_id, new_block_id));
+  storage_manager_->deleteBlockOrBlobFile(old_block_id);
+  storage_manager_->deleteBlockOrBlobFile(new_block_id);
+  storage_manager_->deleteBlockOrBlobFile(target_block_id);
+  log_manager->sendForceRequest();
+}
+
+TEST_P(UndoTest, DeleteTest) {
+  // Undo a series of operations:
+  //   old_block is the image before undo;
+  //   target_block is the expected image after undo;
+  //   new_block is the block we actually implement undo on.
+  block_id old_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(old_block_id);
+  block_id new_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(new_block_id);
+  block_id target_block_id = storage_manager_->createBlock(*relation_, layout_.get());
+  relation_->addBlock(target_block_id);
+  ASSERT_EQ(old_block_id + 1, new_block_id);
+
+  // Do all four flavors of insertion
+  storage_manager_->setLogStatus(false);
+  insertSampleTuplesInBatch(old_block_id, kTupleNumber);
+  insertSampleTuplesInBatch(new_block_id, kTupleNumber);
+  insertSampleTuplesInBatch(target_block_id, kTupleNumber);
+
+  storage_manager_->setLogStatus(true);
+  deleteTuples(old_block_id, 0);
+  deleteTuples(old_block_id, 4);
+  deleteTuples(old_block_id, 2);
+  deleteTuples(old_block_id, 6);
+  
+  storage_manager_->setLogStatus(false);
+  deleteTuples(new_block_id, 0);
+  deleteTuples(new_block_id, 4);
+  deleteTuples(new_block_id, 2);
+  deleteTuples(new_block_id, 6);
+
   // Rebuild the block from log
   LogManager *log_manager = storage_manager_->getLogManager();
   LSN prev_LSN = log_manager->getPrevLSN();
@@ -440,7 +520,7 @@ TEST_P(UndoTest, InsertTest) {
     undo(new_block_id, log_record);
 
     // Update remaining log records and prev LSN
-    buffer = buffer.substr(0, prev_LSN);
+    buffer = buffer.substr(0, prev_LSN - 1);
     prev_LSN = Helper::strToId(log_record.substr(Macros::kPREV_LSN_START, sizeof(LSN)));
   }
   // Compare two blocks
@@ -448,6 +528,7 @@ TEST_P(UndoTest, InsertTest) {
   storage_manager_->deleteBlockOrBlobFile(old_block_id);
   storage_manager_->deleteBlockOrBlobFile(new_block_id);
   storage_manager_->deleteBlockOrBlobFile(target_block_id);
+  log_manager->sendForceRequest();
 }
 
 INSTANTIATE_TEST_CASE_P(WithOrWithoutPartition, UndoTest, ::testing::Bool());

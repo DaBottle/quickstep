@@ -259,6 +259,11 @@ bool StorageBlock::insertTupleInBatch(const Tuple &tuple,
   }
 }
 
+void StorageBlock::insertTupleAtPosition(const Tuple &tuple,
+                                         const tuple_id position) {
+  tuple_store_->insertTupleAtPosition(tuple, position);
+}
+
 tuple_id StorageBlock::bulkInsertTuples(ValueAccessor *accessor,
                                         const TransactionId tid,
                                         StorageManager *storage_manager) {
@@ -940,14 +945,15 @@ void StorageBlock::deleteTuples(const Predicate *predicate,
     // Will be lost.
     if (storage_manager->needLog()) {
       LogManager *log_manager = storage_manager->getLogManager();
-      TupleIdSequence::const_iterator match_it = matches->begin();
+      TupleIdSequence::const_iterator match_it = matches->end();
+      match_it--;
       
       ValueAccessor *accessor = tuple_store_->createValueAccessor(matches.get());
       InvokeOnAnyValueAccessor (accessor, [&] (auto *accessor) -> void {
-        accessor->beginIteration();
-        while (accessor->next()) {
+        accessor->beginIterationReverse();
+        while (accessor->previous()) {
           log_manager->logDelete(tid, id_, *match_it, accessor->getTuple());
-          match_it++;
+          match_it--;
         }
       });
     }

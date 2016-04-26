@@ -140,6 +140,8 @@ class PackedRowStoreTupleStorageSubBlock: public TupleStorageSubBlock {
     return (result.inserted_id >= 0);
   }
 
+  void insertTupleAtPosition(const Tuple &tuple, const tuple_id position) override;
+
   tuple_id bulkInsertTuples(ValueAccessor *accessor) override;
 
   tuple_id bulkInsertTuplesWithRemappedAttributes(

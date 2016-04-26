@@ -247,6 +247,17 @@ class StorageBlock : public StorageBlockBase {
                           StorageManager *storage_manager);
 
   /**
+   * @brief Insert a tuple into this block at the given position.
+   * @note This method should only be used for undoing a deletion. For a
+   *       general insert, please use insertTuple().
+   *
+   * @param tuple The tuple to insert.
+   * @param position The insert destination for the tuple.
+   **/
+  void insertTupleAtPosition(const Tuple &tuple,
+                             const tuple_id position);
+
+  /**
    * @brief Insert as many tuples as possible from a ValueAccessor (all of the
    *        tuples accessible or as many as will fit in this StorageBlock) as a
    *        single batch.

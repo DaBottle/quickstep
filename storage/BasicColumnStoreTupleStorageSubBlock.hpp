@@ -135,6 +135,14 @@ class BasicColumnStoreTupleStorageSubBlock : public TupleStorageSubBlock {
 
   bool insertTupleInBatch(const Tuple &tuple) override;
 
+  // Copy attribute values from 'tuple' into the appropriate column stripes
+  // at the offset specified by 'position'. If 'position' is not at the current
+  // end of tuples in this block, subsequent tuples are shifted back to make
+  // room for the new tuple.
+  // Also, it will be used for undoing a deletion
+  void insertTupleAtPosition(const Tuple &tuple,
+                             const tuple_id position);
+
   tuple_id bulkInsertTuples(ValueAccessor *accessor) override;
 
   tuple_id bulkInsertTuplesWithRemappedAttributes(
@@ -189,13 +197,6 @@ class BasicColumnStoreTupleStorageSubBlock : public TupleStorageSubBlock {
   bool hasSpaceToInsert(const tuple_id num_tuples) const {
     return (num_tuples <= max_tuples_ - header_->num_tuples);
   }
-
-  // Copy attribute values from 'tuple' into the appropriate column stripes
-  // at the offset specified by 'position'. If 'position' is not at the current
-  // end of tuples in this block, subsequent tuples are shifted back to make
-  // room for the new tuple.
-  void insertTupleAtPosition(const Tuple &tuple,
-                             const tuple_id position);
 
   // Move 'num_tuples' values in each column from 'src_tuple' to
   // 'dest_position'. This should usually be paired with a call to

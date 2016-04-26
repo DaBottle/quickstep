@@ -122,6 +122,10 @@ class MockTupleStorageSubBlock : public TupleStorageSubBlock {
     FATAL_ERROR("insertTupleInBatch() is unimplemented in MockTupleStorageSubBlock.");
   }
 
+  void insertTupleAtPosition(const Tuple &tuple, const tuple_id position) override {
+    FATAL_ERROR("insertTupleAtPosition() is unimplemented in MockTupleStorageSubBlock.");
+  }
+
   tuple_id bulkInsertTuples(ValueAccessor *accessor) override {
     FATAL_ERROR("bulkInsertTuples() is unimplemented in MockTupleStorageSubBlock.");
   }

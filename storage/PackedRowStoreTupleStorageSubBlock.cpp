@@ -134,6 +134,60 @@ std::size_t PackedRowStoreTupleStorageSubBlock::EstimateBytesPerTuple(
          + ((relation.numNullableAttributes() + 7) >> 3);
 }
 
+void PackedRowStoreTupleStorageSubBlock::insertTupleAtPosition(const Tuple &tuple,
+                                                               const tuple_id position) {
+  DEBUG_ASSERT(position <= header_->num_tuples);
+  
+  if (position == header_->num_tuples) {
+    // If the deleted tuple was the last tuple in the block, just reinsert it.
+    insertTuple(tuple);
+  } else {
+    const size_t tuple_length = relation_.getFixedByteLength();
+
+    // Move the current tuples after the given position to get the space for
+    // insertion
+    char *src_addr = static_cast<char*>(tuple_storage_)  // Start of actual tuple storage.
+                      + (position * tuple_length);           // Prior tuples.
+    char *dest_addr = src_addr + tuple_length;  // Start of subsequent tuples.
+    const size_t copy_bytes = (header_->num_tuples - position) * tuple_length;  // Bytes in subsequent tuples.
+    memmove(dest_addr, src_addr, copy_bytes);
+
+    // Move the null bitmap backward if any
+    if (null_bitmap_.get() != nullptr) {
+      null_bitmap_->shiftTailBackward(position * relation_.numNullableAttributes(),
+                                     relation_.numNullableAttributes());
+    }
+
+    char *base_addr = static_cast<char*>(tuple_storage_)          // Start of actual tuple-storage region.
+                      + position * relation_.getFixedByteLength();  // prior tuples.
+
+    Tuple::const_iterator value_it = tuple.begin();
+    CatalogRelationSchema::const_iterator attr_it = relation_.begin();
+
+    while (value_it != tuple.end()) {
+      if (null_bitmap_.get() != nullptr) {
+        const int nullable_idx = relation_.getNullableAttributeIndex(attr_it->getID());
+        if ((nullable_idx != -1) && value_it->isNull()) {
+          null_bitmap_->setBit(position * relation_.numNullableAttributes()
+                                   + nullable_idx,
+                               true);
+        } else {
+          value_it->copyInto(base_addr);
+        }
+      } else {
+        value_it->copyInto(base_addr);
+      }
+
+      base_addr += attr_it->getType().maximumByteLength();
+
+      ++value_it;
+      ++attr_it;
+    }
+
+    ++(header_->num_tuples);
+  }
+}
+
 tuple_id PackedRowStoreTupleStorageSubBlock::bulkInsertTuples(ValueAccessor *accessor) {
   const tuple_id original_num_tuples = header_->num_tuples;
   char *dest_addr = static_cast<char*>(tuple_storage_)

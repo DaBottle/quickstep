@@ -116,6 +116,8 @@ class CompressedColumnStoreTupleStorageSubBlock : public CompressedTupleStorageS
   ValueAccessor* createValueAccessor(
       const TupleIdSequence *sequence = nullptr) const override;
 
+  void insertTupleAtPosition(const Tuple &tuple, const tuple_id position) override;
+
   bool deleteTuple(const tuple_id tuple) override;
   bool bulkDeleteTuples(TupleIdSequence *tuples) override;
 

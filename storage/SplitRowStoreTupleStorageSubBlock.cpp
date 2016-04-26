@@ -191,6 +191,30 @@ TupleStorageSubBlock::InsertResult SplitRowStoreTupleStorageSubBlock::insertTupl
   }
 }
 
+void SplitRowStoreTupleStorageSubBlock::insertTupleAtPosition(
+    const Tuple &tuple,
+    const tuple_id position) {
+  TupleStorageSubBlock::InsertResult insert_result(0, false);
+  
+  if (relation_.hasNullableAttributes()) {
+    if (relation_.isVariableLength()) {
+      insert_result = insertTupleImpl<true, true>(tuple, position);
+    } else {
+      insert_result = insertTupleImpl<true, false>(tuple, position);
+    }
+  } else {
+    if (relation_.isVariableLength()) {
+      insert_result = insertTupleImpl<false, true>(tuple, position);
+    } else {
+      insert_result = insertTupleImpl<false, false>(tuple, position);
+    }
+  }
+
+  if (insert_result.inserted_id < 0) {
+    FATAL_ERROR("Failed to undo a deletion");
+  }
+}
+
 tuple_id SplitRowStoreTupleStorageSubBlock::bulkInsertTuples(ValueAccessor *accessor) {
   const tuple_id original_num_tuples = header_->num_tuples;
   tuple_id pos = 0;
@@ -916,9 +940,15 @@ void SplitRowStoreTupleStorageSubBlock::rebuild() {
 
 template <bool nullable_attrs, bool variable_length_attrs>
 TupleStorageSubBlock::InsertResult SplitRowStoreTupleStorageSubBlock::insertTupleImpl(
-    const Tuple &tuple) {
-  tuple_id pos = isPacked() ? header_->num_tuples
-                            : occupancy_bitmap_->firstZero();
+    const Tuple &tuple,
+    int position) {
+  tuple_id pos;
+  if (position == -1) {
+    pos = isPacked() ? header_->num_tuples
+                     : occupancy_bitmap_->firstZero();
+  } else {
+    pos = position;
+  }
   if ((pos + 1) * tuple_slot_bytes_ + header_->variable_length_bytes_allocated > tuple_storage_bytes_) {
     // Early check: if tuple would cause us to run out of space without even
     // counting variable length storage, fail immediately.
